@@ -72,7 +72,7 @@ export async function persistGeneration(result: GenerationResult): Promise<strin
       numbers: g.numbers,
       lineage: g.lineage,
       score: g.score.total,
-      metrics: { score: g.score, gameMetrics: g.metrics },
+      metrics: JSON.parse(JSON.stringify({ score: g.score, gameMetrics: g.metrics })),
       position: i,
     }));
     const { error: e3 } = await supabase.from("generation_games").insert(rows);
