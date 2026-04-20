@@ -169,6 +169,9 @@ const Index = () => {
               </div>
               <aside className="space-y-6">
                 <TerritoryHeatmap result={result} />
+                {diag && <DiagnosticsPanel diag={diag} />}
+                {recommendations.length > 0 && <RecommendationsPanel items={recommendations} />}
+                <BacktestPanel currentGeneration={result} />
                 <div className="glass rounded-xl p-5 space-y-3">
                   <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
                   <LineageBreakdown result={result} />
