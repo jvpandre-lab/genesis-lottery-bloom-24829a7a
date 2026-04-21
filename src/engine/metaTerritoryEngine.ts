@@ -3,7 +3,9 @@
 // Detecta regiões superexploradas, negligenciadas, falsas diversidades, drift territorial.
 
 import { Dezena, DrawRecord, GenerationResult, LineageId, Scenario } from "./lotteryTypes";
-import { TerritoryMap } from "./territoryEngine";
+
+// Mapa de uso por dezena (00..99). Local a este motor — não é a classe TerritoryMap.
+type TerritoryMap = Partial<Record<Dezena, number>>;
 
 export interface PressureZones {
   zones: { dezena: Dezena; pressure: number }[];
@@ -73,8 +75,9 @@ export class MetaTerritoryEngine {
     let totalCoverage = 0;
     for (const t of allTerritories) {
       for (const [dez, count] of Object.entries(t)) {
-        freqMap[dez as Dezena] = (freqMap[dez as Dezena] || 0) + count;
-        totalCoverage += count;
+        const k = Number(dez) as Dezena;
+        freqMap[k] = (freqMap[k] || 0) + (count as number);
+        totalCoverage += (count as number);
       }
     }
 
@@ -137,7 +140,10 @@ export class MetaTerritoryEngine {
   private computeTerritoryFromDraws(draws: DrawRecord[]): TerritoryMap[] {
     return draws.map(d => {
       const map: TerritoryMap = {};
-      for (const n of d.numbers) map[n] = (map[n] || 0) + 1;
+      for (const n of d.numbers) {
+        const k = Number(n) as Dezena;
+        map[k] = (map[k] || 0) + 1;
+      }
       return map;
     });
   }
@@ -152,11 +158,11 @@ export class MetaTerritoryEngine {
   }
 
   private computeDrift(recent: TerritoryMap[], older: TerritoryMap[]): number {
-    const recentFreq: Record<Dezena, number> = {};
-    const olderFreq: Record<Dezena, number> = {};
+    const recentFreq: Record<number, number> = {};
+    const olderFreq: Record<number, number> = {};
 
-    for (const t of recent) for (const [n, c] of Object.entries(t)) recentFreq[n as Dezena] = (recentFreq[n as Dezena] || 0) + c;
-    for (const t of older) for (const [n, c] of Object.entries(t)) olderFreq[n as Dezena] = (olderFreq[n as Dezena] || 0) + c;
+    for (const t of recent) for (const [n, c] of Object.entries(t)) recentFreq[Number(n)] = (recentFreq[Number(n)] || 0) + (c as number);
+    for (const t of older) for (const [n, c] of Object.entries(t)) olderFreq[Number(n)] = (olderFreq[Number(n)] || 0) + (c as number);
 
     let drift = 0;
     for (let n = 0; n <= 99; n++) {

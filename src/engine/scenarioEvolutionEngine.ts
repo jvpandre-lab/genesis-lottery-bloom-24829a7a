@@ -18,8 +18,8 @@ export class ScenarioEvolutionEngine {
   private transitionHistory: ScenarioTransition[] = [];
 
   evaluateTransition(cycleHealth: CycleHealth, territoryDrift: TerritoryDrift, currentScenario: Scenario): Scenario | null {
-    if (cycleHealth.recoveryNeed && currentScenario !== 'recovery') {
-      return this.transitionTo('recovery', 'Saúde do ciclo baixa - necessidade de recuperação', { cycleHealth });
+    if (cycleHealth.recoveryNeed && currentScenario !== 'conservative') {
+      return this.transitionTo('conservative', 'Saúde do ciclo baixa - recuperação via cenário conservador', { cycleHealth });
     }
     if (territoryDrift.driftMagnitude > 0.5 && territoryDrift.direction === 'converging' && currentScenario !== 'exploratory') {
       return this.transitionTo('exploratory', 'Drift territorial convergente detectado - forçar exploração', { territoryDrift });
