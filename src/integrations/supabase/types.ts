@@ -14,6 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      adaptive_adjustments: {
+        Row: {
+          adjustment_type: string
+          applied: boolean
+          created_at: string
+          details: Json
+          generation_id: string | null
+          id: string
+        }
+        Insert: {
+          adjustment_type: string
+          applied?: boolean
+          created_at?: string
+          details?: Json
+          generation_id?: string | null
+          id?: string
+        }
+        Update: {
+          adjustment_type?: string
+          applied?: boolean
+          created_at?: string
+          details?: Json
+          generation_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adaptive_adjustments_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      adaptive_pressure_signals: {
+        Row: {
+          created_at: string
+          details: Json
+          generation_id: string | null
+          id: string
+          signal_type: string
+          threshold: number | null
+          triggered: boolean
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          generation_id?: string | null
+          id?: string
+          signal_type: string
+          threshold?: number | null
+          triggered?: boolean
+          value?: number
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          generation_id?: string | null
+          id?: string
+          signal_type?: string
+          threshold?: number | null
+          triggered?: boolean
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "adaptive_pressure_signals_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       generation_batches: {
         Row: {
           created_at: string
@@ -126,6 +202,50 @@ export type Database = {
         }
         Relationships: []
       }
+      lineage_history: {
+        Row: {
+          created_at: string
+          dominance_score: number
+          drift_magnitude: number | null
+          drift_status: string | null
+          exploration_rate: number | null
+          generation_id: string | null
+          id: string
+          lineage: string
+          stability_score: number | null
+        }
+        Insert: {
+          created_at?: string
+          dominance_score?: number
+          drift_magnitude?: number | null
+          drift_status?: string | null
+          exploration_rate?: number | null
+          generation_id?: string | null
+          id?: string
+          lineage: string
+          stability_score?: number | null
+        }
+        Update: {
+          created_at?: string
+          dominance_score?: number
+          drift_magnitude?: number | null
+          drift_status?: string | null
+          exploration_rate?: number | null
+          generation_id?: string | null
+          id?: string
+          lineage?: string
+          stability_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lineage_history_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lotomania_draws: {
         Row: {
           contest_number: number
@@ -149,6 +269,77 @@ export type Database = {
           numbers?: number[]
         }
         Relationships: []
+      }
+      scenario_transitions: {
+        Row: {
+          created_at: string
+          from_scenario: string | null
+          id: string
+          reason: string
+          to_scenario: string
+          triggered_by: Json
+        }
+        Insert: {
+          created_at?: string
+          from_scenario?: string | null
+          id?: string
+          reason: string
+          to_scenario: string
+          triggered_by?: Json
+        }
+        Update: {
+          created_at?: string
+          from_scenario?: string | null
+          id?: string
+          reason?: string
+          to_scenario?: string
+          triggered_by?: Json
+        }
+        Relationships: []
+      }
+      territory_snapshots: {
+        Row: {
+          blind_zones: Json | null
+          created_at: string
+          drift_direction: string | null
+          drift_magnitude: number | null
+          generation_id: string | null
+          id: string
+          pressure_zones: Json | null
+          saturation_level: number | null
+          snapshot: Json
+        }
+        Insert: {
+          blind_zones?: Json | null
+          created_at?: string
+          drift_direction?: string | null
+          drift_magnitude?: number | null
+          generation_id?: string | null
+          id?: string
+          pressure_zones?: Json | null
+          saturation_level?: number | null
+          snapshot?: Json
+        }
+        Update: {
+          blind_zones?: Json | null
+          created_at?: string
+          drift_direction?: string | null
+          drift_magnitude?: number | null
+          generation_id?: string | null
+          id?: string
+          pressure_zones?: Json | null
+          saturation_level?: number | null
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "territory_snapshots_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "generations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

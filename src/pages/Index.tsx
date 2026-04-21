@@ -10,6 +10,7 @@ import { BatchSection } from "@/components/BatchSection";
 import { TerritoryHeatmap } from "@/components/TerritoryHeatmap";
 import { HistoryUploader } from "@/components/HistoryUploader";
 import { BacktestPanel } from "@/components/BacktestPanel";
+import { EvolutionaryBacktestPanel } from "@/components/EvolutionaryBacktestPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { EcosystemDashboard } from "@/components/EcosystemDashboard";
@@ -188,6 +189,7 @@ const Index = () => {
                 {diag && <DiagnosticsPanel diag={diag} />}
                 {recommendations.length > 0 && <RecommendationsPanel items={recommendations} />}
                 <BacktestPanel currentGeneration={result} />
+                <EvolutionaryBacktestPanel scenario={scenario} />
                 <EcosystemDashboard />
                 <TacticalLotePanel />
                 <BrainTensionDiagnostics />
