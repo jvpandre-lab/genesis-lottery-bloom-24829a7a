@@ -10,7 +10,7 @@ describe('CycleMemoryEngine', () => {
   });
 
   it('should record generation and update cycles', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',
@@ -43,7 +43,7 @@ describe('CycleMemoryEngine', () => {
   });
 
   it('should track cycle health deterioration', () => {
-    const results: GenerationResult[] = Array.from({ length: 5 }, (_, i) => ({
+    const results: any[] = Array.from({ length: 5 }, (_, i) => ({
       id: `gen-${i}`,
       requestedCount: 50,
       scenario: 'hybrid',
@@ -73,7 +73,7 @@ describe('CycleMemoryEngine', () => {
   });
 
   it('should get cycle metrics', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',

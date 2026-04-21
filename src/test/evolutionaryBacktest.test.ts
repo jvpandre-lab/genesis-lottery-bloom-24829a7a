@@ -10,7 +10,7 @@ describe('Evolutionary Backtest Retrospective', () => {
       numbers: Array.from({ length: 20 }, (_, j) => ((i * 7 + j * 3) % 100) as any)
     }));
 
-    const mockGenerate = async (input: any): Promise<GenerationResult> => ({
+    const mockGenerate = async (input: any): Promise<any> => ({
       id: `gen-${Date.now()}`,
       requestedCount: input.count,
       scenario: input.scenario,
@@ -49,7 +49,7 @@ describe('Evolutionary Backtest Retrospective', () => {
       numbers: Array.from({ length: 20 }, (_, j) => ((i * 7 + j * 3) % 100) as any)
     }));
 
-    const mockGenerate = async (input: any): Promise<GenerationResult> => ({
+    const mockGenerate = async (input: any): Promise<any> => ({
       id: `gen-${Date.now()}`,
       requestedCount: input.count,
       scenario: input.scenario,
@@ -80,7 +80,7 @@ describe('Evolutionary Backtest Retrospective', () => {
       numbers: Array.from({ length: 20 }, (_, j) => j as any)
     }));
 
-    const mockGenerate = async (input: any): Promise<GenerationResult> => ({
+    const mockGenerate = async (input: any): Promise<any> => ({
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',

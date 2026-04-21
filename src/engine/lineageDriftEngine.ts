@@ -129,14 +129,12 @@ export class LineageDriftEngine {
 
   private getExpectedBehavior(lineage: LineageId): string {
     const behaviors: Record<LineageId, string> = {
-      'alpha': 'Estável, estruturado, baixa variância',
-      'sigma': 'Equilíbrio, moderada exploração',
-      'delta': 'Explorador, média variância',
-      'omega': 'Caótico, alta dispersão, inovação',
-      'conservative': 'Conservador, muito estruturado',
-      'chaotic': 'Caótico, explorador agressivo',
-      'dispersive': 'Dispersivo, máxima cobertura',
-      'anticrowd': 'Anti-padrão humano, ruptura'
+      conservative: 'Conservador, muito estruturado, baixa variância',
+      dispersive: 'Dispersivo, máxima cobertura e espaçamento',
+      coverage: 'Cobertura massiva por faixas',
+      anticrowd: 'Anti-padrão humano, ruptura de simetrias',
+      hybrid: 'Equilíbrio adaptativo entre cobertura e exploração',
+      chaotic: 'Caótico, alta entropia, exploração agressiva',
     };
     return behaviors[lineage] || 'Comportamento desconhecido';
   }

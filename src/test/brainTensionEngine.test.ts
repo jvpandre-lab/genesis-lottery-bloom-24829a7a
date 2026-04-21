@@ -10,7 +10,7 @@ describe('BrainTensionEngine', () => {
   });
 
   it('should record generation metrics', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',
@@ -27,7 +27,7 @@ describe('BrainTensionEngine', () => {
   });
 
   it('should analyze tension', () => {
-    const results: GenerationResult[] = Array.from({ length: 5 }, (_, i) => ({
+    const results: any[] = Array.from({ length: 5 }, (_, i) => ({
       id: `gen-${i}`,
       requestedCount: 50,
       scenario: 'hybrid',
@@ -49,7 +49,7 @@ describe('BrainTensionEngine', () => {
   });
 
   it('should get health report', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',
@@ -70,7 +70,7 @@ describe('BrainTensionEngine', () => {
   });
 
   it('should detect high capture risk', () => {
-    const results: GenerationResult[] = Array.from({ length: 5 }, (_, i) => ({
+    const results: any[] = Array.from({ length: 5 }, (_, i) => ({
       id: `gen-${i}`,
       requestedCount: 50,
       scenario: 'hybrid',

@@ -31,7 +31,7 @@ describe("Two Brains + Arbiter", () => {
     const ctxBase = { usage: new Array(100).fill(0), reference: [], recentDraws: [] };
     const A = proposeFromBrain("A", "Alpha", 0, ctxBase, 4, mulberry32(21));
     const B = proposeFromBrain("B", "Alpha", 0, ctxBase, 4, mulberry32(22));
-    const { selected } = arbitrateBatch([...A, ...B], 4, 0.75, ctxBase);
+    const { selected } = arbitrateBatch([...A, ...B], 4, 0.75, ctxBase, "hybrid");
     const aShare = selected.filter((c) => c.brain === "A").length / selected.length;
     expect(aShare).toBeGreaterThanOrEqual(0.5);
   });
@@ -40,7 +40,7 @@ describe("Two Brains + Arbiter", () => {
     const ctxBase = { usage: new Array(100).fill(0), reference: [], recentDraws: [] };
     const A = proposeFromBrain("A", "Sigma", 0, ctxBase, 5, mulberry32(31));
     const B = proposeFromBrain("B", "Sigma", 0, ctxBase, 5, mulberry32(32));
-    const { selected } = arbitrateBatch([...A, ...B], 6, 0.4, ctxBase);
+    const { selected } = arbitrateBatch([...A, ...B], 6, 0.4, ctxBase, "hybrid");
     expect(selected.length).toBe(6);
   });
 });

@@ -10,7 +10,7 @@ describe('LineageDriftEngine', () => {
   });
 
   it('should record lineage behavior', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',
@@ -40,7 +40,7 @@ describe('LineageDriftEngine', () => {
   });
 
   it('should detect lineage drift', () => {
-    const results: GenerationResult[] = Array.from({ length: 20 }, (_, i) => ({
+    const results: any[] = Array.from({ length: 20 }, (_, i) => ({
       id: `gen-${i}`,
       requestedCount: 50,
       scenario: 'hybrid',
@@ -74,7 +74,7 @@ describe('LineageDriftEngine', () => {
   });
 
   it('should get all drifts', () => {
-    const result: GenerationResult = {
+    const result: any = {
       id: '1',
       requestedCount: 50,
       scenario: 'hybrid',
