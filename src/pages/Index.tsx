@@ -54,8 +54,10 @@ const Index = () => {
       // Integrate ecosystem analysis
       try {
         const generationId = (gen as any).id ?? crypto.randomUUID();
-        const divergence = diagnostics?.arbiterMetrics?.divergence ?? 0.5;
-        const arbitrationDifficulty = diagnostics?.arbiterMetrics?.difficulty ?? 0.3;
+        const am: any = (diagnostics as any)?.arbiterMetrics;
+        const first = Array.isArray(am) ? am[0] : am;
+        const divergence = first?.divergence ?? 0.5;
+        const arbitrationDifficulty = first?.difficulty ?? 0.3;
         await integrateEcosystemFlow(gen as GenerationResult, recent, generationId, divergence, arbitrationDifficulty);
         toast({ title: "Ecossistema atualizado", description: "Análise territorial, tática e cerebral integrada." });
       } catch (e: any) {
