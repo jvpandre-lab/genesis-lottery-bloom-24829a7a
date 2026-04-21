@@ -169,8 +169,11 @@ export function buildPreGenContext(
             if (evolved && evolved !== scenario) {
                 scenarioOverride = evolved;
                 reasons.push(`ScenarioEvolution: transição automática → ${evolved} (era ${scenario}).`);
-                // Persistir transição
-                await scenarioEvolutionEngine.applyTransition(evolved);
+                // Persistir transição sem bloquear o contexto pré-gen
+                void scenarioEvolutionEngine.applyTransition(evolved).catch((err) => {
+                    console.warn("ScenarioEvolution: falha ao persistir transição automática.", err);
+                    reasons.push("ScenarioEvolution: falha ao persistir transição automática.");
+                });
             }
         }
     } catch (e) {
