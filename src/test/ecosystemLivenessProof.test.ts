@@ -8,7 +8,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { generate, GenerationResult } from "@/engine/generatorCore";
+import { generate } from "@/engine/generatorCore";
+import { GenerationResult } from "@/engine/lotteryTypes";
 import { mulberry32 } from "@/engine/rng";
 import { metaTerritoryEngine } from "@/engine/metaTerritoryEngine";
 import { cycleMemoryEngine } from "@/engine/cycleMemoryEngine";
@@ -527,7 +528,7 @@ describe("Ecosystem Liveness Proof", () => {
     if (hasScenarioOverride) console.log("   • Cenários evoluem com base em sinais de ciclo e território");
     if (hasBrainTension) console.log("   • Tensão entre cérebros é registrada e influencia futuras gerações");
     if (hasTacticalRoles) console.log("   • Composição tática varia, não é aleatória ou fixa");
-    if (hasBalanceVariance) console.log("   • Equilíbrio A/B não é travado, existe negociação");
+    if (hasBalanceVariation) console.log("   • Equilíbrio A/B não é travado, existe negociação");
 
     console.log("\n3. Quais partes ainda são apenas suporte ou diagnóstico?");
     console.log("   • AdaptivePressure: apenas observa, não modifica comportamento em tempo real");

@@ -107,6 +107,18 @@ export interface GenerationResult {
     avgCoverage: number;
     territoryEntropy: number;
   };
+  diagnostics: {
+    contradictionsRejected: number;
+    arbiterReasoning: string[];
+    arbiterMetrics: any[];
+    adjustments: any;
+    preGenContext: any;
+    batchObjectiveScores: Record<string, number>;
+    overallObjectiveScore: number;
+    ecoBrainBalance: { picksA: number; picksB: number };
+    tacticalComposition: Record<string, number>;
+    brainTensionHealth: any;
+  };
   createdAt: string;
 }
 
