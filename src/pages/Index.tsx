@@ -86,7 +86,7 @@ const Index = () => {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-tight">Aurum · Lotomania</div>
+              <div className="text-sm font-semibold tracking-tight">Lotomania IA da Sorte</div>
               <div className="text-[10px] text-muted-foreground -mt-0.5 uppercase tracking-widest">Sistema Evolutivo</div>
             </div>
           </div>
@@ -210,7 +210,7 @@ const Index = () => {
 
       <footer className="border-t border-border/40 mt-16">
         <div className="container py-6 text-[11px] text-muted-foreground flex items-center justify-between">
-          <span>Aurum Lotomania · sistema experimental, não garante prêmios.</span>
+          <span>Lotomania IA da Sorte · sistema experimental, não garante prêmios.</span>
           <span className="font-mono num-mono">domínio 00–99 · 50 dezenas/jogo</span>
         </div>
       </footer>
