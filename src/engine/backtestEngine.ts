@@ -85,7 +85,7 @@ export function backtest(generations: GenerationLite[], allDraws: DrawRecord[], 
     let f15 = 0, f16 = 0, f17 = 0, f18 = 0, f19 = 0, f20 = 0;
     for (const game of allGames) {
       for (const d of draws) {
-        const h = countHits(game.numbers, d.numbers);
+        const h = countHits(game.numbers, (d.numbers as any[]).map(Number));
         histogram[h] = (histogram[h] ?? 0) + 1;
         totalHits += h;
         totalGames++;
@@ -119,7 +119,7 @@ export function backtest(generations: GenerationLite[], allDraws: DrawRecord[], 
   const refDraws = sorted.slice(0, Math.max(50, windows[0] ?? 50));
   for (const game of allGames) {
     for (const d of refDraws) {
-      const h = countHits(game.numbers, d.numbers);
+      const h = countHits(game.numbers, (d.numbers as any[]).map(Number));
       const lin = linMap.get(game.lineage) ?? { hits: 0, games: 0, f15: 0, f16: 0 };
       lin.hits += h; lin.games++; if (h >= 15) lin.f15++; if (h >= 16) lin.f16++;
       linMap.set(game.lineage, lin);
@@ -229,7 +229,7 @@ export async function backtestEvolutionaryRetrospective(
 
     for (const game of allGames) {
       for (const d of evalDraws) {
-        const h = countHits(game.numbers, d.numbers);
+        const h = countHits(game.numbers, (d.numbers as any[]).map(Number));
         totalHits += h;
         totalGames++;
         hitsList.push(h);

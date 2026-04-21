@@ -4,17 +4,15 @@ import { Dezena, DrawRecord, GenerationResult } from "@/engine/lotteryTypes";
 export async function fetchRecentDraws(limit = 10): Promise<DrawRecord[]> {
   const { data, error } = await supabase
     .from("lotomania_draws")
-    .select("contest_number, draw_date, numbers, source, synced_at, last_checked_at")
+    .select("contest_number, draw_date, numbers")
     .order("contest_number", { ascending: false })
     .limit(limit);
   if (error) throw error;
   return (data ?? []).map((r) => ({
     contestNumber: r.contest_number,
     drawDate: r.draw_date ?? undefined,
-    numbers: r.numbers as any,
-    source: r.source,
-    syncedAt: r.synced_at,
-    lastCheckedAt: r.last_checked_at
+    numbers: r.numbers as Dezena[],
+    source: "database" as const,
   }));
 }
 
@@ -31,10 +29,7 @@ export async function upsertDraws(draws: DrawRecord[]): Promise<number> {
   const rows = draws.map((d) => ({
     contest_number: d.contestNumber,
     draw_date: d.drawDate ?? null,
-    numbers: d.numbers,
-    source: d.source ?? "manual",
-    synced_at: d.syncedAt ?? new Date().toISOString(),
-    last_checked_at: d.lastCheckedAt ?? new Date().toISOString()
+    numbers: (d.numbers as any[]).map((n) => Number(n)),
   }));
   const { error, count } = await supabase
     .from("lotomania_draws")
@@ -112,56 +107,28 @@ export interface TerritorySnapshot {
   saturationLevel?: number;
 }
 
-export async function persistPressureSignals(generationId: string, signals: PressureSignal[]): Promise<void> {
-  const rows = signals.map(s => ({
-    generation_id: generationId,
-    signal_type: s.signalType,
-    value: s.value,
-    threshold: s.threshold,
-    triggered: s.triggered,
-  }));
-  const { error } = await supabase.from("adaptive_pressure_signals").insert(rows);
-  if (error) throw error;
+// NOTE: Tabelas dedicadas (adaptive_pressure_signals, adaptive_adjustments,
+// lineage_history, territory_snapshots, scenario_transitions) ainda não foram
+// criadas no schema. Mantemos as funções como no-ops resilientes para que o
+// fluxo do ecossistema funcione sem quebrar a build. Quando as tabelas forem
+// adicionadas via migração, basta trocar a implementação.
+
+export async function persistPressureSignals(_generationId: string, _signals: PressureSignal[]): Promise<void> {
+  return;
 }
 
-export async function persistAdjustments(generationId: string, adjustments: AdjustmentRecord[]): Promise<void> {
-  const rows = adjustments.map(a => ({
-    generation_id: generationId,
-    adjustment_type: a.adjustmentType,
-    details: a.details,
-    applied: a.applied,
-  }));
-  const { error } = await supabase.from("adaptive_adjustments").insert(rows);
-  if (error) throw error;
+export async function persistAdjustments(_generationId: string, _adjustments: AdjustmentRecord[]): Promise<void> {
+  return;
 }
 
-export async function persistLineageHistory(generationId: string, lineages: LineageRecord[]): Promise<void> {
-  const rows = lineages.map(l => ({
-    generation_id: generationId,
-    lineage: l.lineage,
-    dominance_score: l.dominanceScore,
-    exploration_rate: l.explorationRate,
-    stability_score: l.stabilityScore,
-  }));
-  const { error } = await supabase.from("lineage_history").insert(rows);
-  if (error) throw error;
+export async function persistLineageHistory(_generationId: string, _lineages: LineageRecord[]): Promise<void> {
+  return;
 }
 
-export async function persistTerritorySnapshot(generationId: string, snapshot: TerritorySnapshot): Promise<void> {
-  const { error } = await supabase.from("territory_snapshots").insert({
-    generation_id: generationId,
-    snapshot: snapshot.snapshot,
-    saturation_level: snapshot.saturationLevel,
-  });
-  if (error) throw error;
+export async function persistTerritorySnapshot(_generationId: string, _snapshot: TerritorySnapshot): Promise<void> {
+  return;
 }
 
-export async function persistScenarioTransition(fromScenario: string | null, toScenario: string, reason: string, triggeredBy: any): Promise<void> {
-  const { error } = await supabase.from("scenario_transitions").insert({
-    from_scenario: fromScenario,
-    to_scenario: toScenario,
-    reason,
-    triggered_by: triggeredBy,
-  });
-  if (error) throw error;
+export async function persistScenarioTransition(_fromScenario: string | null, _toScenario: string, _reason: string, _triggeredBy: any): Promise<void> {
+  return;
 }
