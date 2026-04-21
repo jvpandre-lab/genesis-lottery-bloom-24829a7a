@@ -9,6 +9,7 @@ import { brainTensionEngine } from "./brainTensionEngine";
 import { scenarioEvolutionEngine } from "./scenarioEvolutionEngine";
 import { lineageDriftEngine } from "./lineageDriftEngine";
 import { TacticalRole } from "./tacticalRoleEngine";
+import { globalPressure } from "./adaptivePressureEngine";
 
 /**
  * Contexto pré-geração produzido pelo ecossistema.
@@ -144,22 +145,36 @@ export function buildPreGenContext(
             targetBalanceAdjustment -= 0.10;
             reasons.push(`BrainTension: Brain A rígido demais (${tensionReport.brainAStrength.toFixed(2)}) — abrindo espaço para B.`);
         }
+        if (tensionReport.arbitratorEffectiveness < 0.6) {
+            targetBalanceAdjustment += 0.08;
+            reasons.push(`BrainTension: árbitro sob pressão (${tensionReport.arbitratorEffectiveness.toFixed(2)}) — reforçando equilíbrio.`);
+        }
     } catch (e) {
         reasons.push("BrainTension: sem dados suficientes.");
     }
 
     // ── 4. ScenarioEvolutionEngine → cenário automático ────────────────────
     try {
-        // Apenas usa o cenário do ecosistema se não foi sobreposto pelo metaTerritory
-        if (!scenarioOverride) {
-            const ecoScenario = scenarioEvolutionEngine.getCurrentScenario();
-            if (ecoScenario !== scenario) {
-                scenarioOverride = ecoScenario;
-                reasons.push(`ScenarioEvolution: cenário automático → ${ecoScenario} (era ${scenario}).`);
+        // Executar transição automática baseada em sinais reais
+        const cycleHealth = cycleMemoryEngine.getCycleHealth("last5");
+        const territoryAnalysis = metaTerritoryEngine.analyze();
+        const pressureSignals = globalPressure.signals();
+
+        if (cycleHealth && territoryAnalysis) {
+            const evolved = scenarioEvolutionEngine.evaluateTransition(
+                cycleHealth,
+                territoryAnalysis.territoryDrift,
+                scenario
+            );
+            if (evolved && evolved !== scenario) {
+                scenarioOverride = evolved;
+                reasons.push(`ScenarioEvolution: transição automática → ${evolved} (era ${scenario}).`);
+                // Persistir transição
+                await scenarioEvolutionEngine.applyTransition(evolved);
             }
         }
     } catch (e) {
-        reasons.push("ScenarioEvolution: sem dados suficientes.");
+        reasons.push("ScenarioEvolution: erro na transição automática.");
     }
 
     // ── 5. LineageDriftEngine → penalidades de linhagem ────────────────────
@@ -180,8 +195,20 @@ export function buildPreGenContext(
     }
 
     // ── 6. TacticalNeeds → papéis táticos que faltam ───────────────────────
-    // Por ora: esqueleto padrão. O tacticalRoleEngine popula durante montagem do lote.
-    // (preenchido incrementalmente no generatorCore durante seleção de jogos)
+    // Calcular necessidades táticas baseadas no histórico e cenário
+    try {
+        // Placeholder: por ora, necessidades padrão por batch
+        // Futuro: analisar histórico para determinar necessidades reais
+        tacticalNeeds = {
+            Alpha: ['Anchor', 'Shield'],
+            Sigma: ['Explorer', 'Breaker'],
+            Delta: ['Spreader', 'AntiCrowd'],
+            Omega: ['Breaker', 'Explorer']
+        };
+        reasons.push("TacticalNeeds: necessidades padrão definidas por batch.");
+    } catch (e) {
+        reasons.push("TacticalNeeds: erro ao calcular necessidades.");
+    }
 
     // Clampar ajustes
     targetBalanceAdjustment = Math.max(-0.25, Math.min(0.25, targetBalanceAdjustment));

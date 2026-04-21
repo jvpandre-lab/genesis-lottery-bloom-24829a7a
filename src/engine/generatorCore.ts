@@ -8,7 +8,8 @@ import { defaultRNG, RNG } from "./rng";
 import { proposeFromBrain, arbitrateBatch, proposalToGame, ArbiterMetrics } from "./twoBrainsEngine";
 import { globalPressure, AdaptiveAdjustments } from "./adaptivePressureEngine";
 import { buildPreGenContext, PreGenContext } from "./preGenEcosystem";
-import { tacticalRoleEngine } from "./tacticalRoleEngine";
+import { tacticalRoleEngine, TacticalRole } from "./tacticalRoleEngine";
+import { brainTensionEngine } from "./brainTensionEngine";
 
 export interface GenerateInput {
   count: number;
@@ -30,6 +31,8 @@ export interface GenerateInput {
     adaptivePressure?: boolean;
     preGenEcosystem?: boolean;
     batchObjective?: boolean;
+    tacticalRole?: boolean;
+    brainTension?: boolean;
   };
 }
 
@@ -43,6 +46,8 @@ export interface GenerationDiagnostics {
   batchObjectiveScores: Record<BatchName, number>;
   overallObjectiveScore: number;
   ecoBrainBalance: { picksA: number; picksB: number };
+  tacticalComposition: Record<TacticalRole, number>;
+  brainTensionHealth: any;
 }
 
 const BATCH_ORDER: BatchName[] = ["Alpha", "Sigma", "Delta", "Omega"];
@@ -223,11 +228,23 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
       const adjustedA = applyLineagePenalties(propsA);
       const adjustedB = applyLineagePenalties(propsB);
 
-      // P1 FIX: targetBalanceA com shift pré-gen do ecossistema
-      const balanceA = targetBalanceA(batchName, finalScenario, preGenBalAdj);
+      // P7: Tactical Role Integration — filtrar candidatos por necessidades táticas
+      const filterByTacticalNeeds = (props: typeof adjustedA, batchName: BatchName) => {
+        if (disableEngines.tacticalRole) return props;
+        const needs = preGenCtx?.tacticalNeeds?.[batchName] ?? [];
+        if (needs.length === 0) return props;
+        return props.filter(p => {
+          const game = proposalToGame(p, { ...ctxBase, reference: [] });
+          const role = tacticalRoleEngine.determineRole(game, territory);
+          return needs.includes(role);
+        });
+      };
+
+      const tacticalA = filterByTacticalNeeds(adjustedA, batchName);
+      const tacticalB = filterByTacticalNeeds(adjustedB, batchName);
 
       const { selected, reasoning, metrics } = arbitrateBatch(
-        [...adjustedA, ...adjustedB],
+        [...tacticalA, ...tacticalB],
         n,
         balanceA,
         ctxBase,
@@ -315,6 +332,12 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
       : computeBatchObjective(games, bPicksA, bPicksB, finalScenario, batchName);
     batchObjectiveScores[batchName] = objScore;
 
+    // P7: Tactical composition
+    const tacticalComposition = games.reduce((acc, g) => {
+      acc[g.tacticalRole] = (acc[g.tacticalRole] || 0) + 1;
+      return acc;
+    }, {} as Record<TacticalRole, number>);
+
     const avgScore = games.reduce((s, g) => s + g.score.total, 0) / games.length;
     const diversity = batchDiversity(games);
     batches.push({ name: batchName, purpose: meta.purpose, dominant: meta.dominant, games, avgScore, diversity });
@@ -342,15 +365,24 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
     globalPressure.observe(result);
   }
 
+  // P8: Record brain tension for future adjustments
+  if (!disableEngines.brainTension) {
+    const divergence = result.metrics.avgDiversity; // placeholder for actual divergence
+    const arbitrationDifficulty = arbiterMetricsList.reduce((s, m) => s + (m.captureRisk === 'high' ? 1 : 0), 0) / arbiterMetricsList.length;
+    brainTensionEngine.recordGeneration(result, divergence, arbitrationDifficulty);
+  }
+
   const diagnostics: GenerationDiagnostics = {
     contradictionsRejected,
     arbiterReasoning,
-    arbiterMetrics: arbiterMetricsList,
+    arbiterMetrics,
     adjustments,
     preGenContext: preGenCtx,
     batchObjectiveScores,
     overallObjectiveScore,
     ecoBrainBalance: { picksA: totalPicksA, picksB: totalPicksB },
+    tacticalComposition: tacticalComposition,
+    brainTensionHealth: disableEngines.brainTension ? null : brainTensionEngine.getHealthReport(),
   };
 
   return { ...result, diagnostics };
