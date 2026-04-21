@@ -16,6 +16,34 @@ export async function fetchRecentDraws(limit = 10): Promise<DrawRecord[]> {
   }));
 }
 
+export async function fetchAllDraws(): Promise<DrawRecord[]> {
+  // Pagina em blocos de 1000 (limite default do Supabase) para garantir
+  // backtest completo mesmo com histórico grande.
+  const all: DrawRecord[] = [];
+  const pageSize = 1000;
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("lotomania_draws")
+      .select("contest_number, draw_date, numbers")
+      .order("contest_number", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    for (const r of data) {
+      all.push({
+        contestNumber: r.contest_number,
+        drawDate: r.draw_date ?? undefined,
+        numbers: r.numbers as Dezena[],
+        source: "database" as const,
+      });
+    }
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+  return all;
+}
+
 export async function countDraws(): Promise<number> {
   const { count, error } = await supabase
     .from("lotomania_draws")
@@ -79,6 +107,8 @@ export async function persistGeneration(result: GenerationResult): Promise<strin
     const { error: e3 } = await supabase.from("generation_games").insert(rows);
     if (e3) throw e3;
   }
+  // Mutar id do resultado em memória (para integração de ecossistema)
+  (result as any).id = generationId;
   return generationId;
 }
 
@@ -87,6 +117,7 @@ export interface PressureSignal {
   value: number;
   threshold?: number;
   triggered: boolean;
+  details?: any;
 }
 
 export interface AdjustmentRecord {
@@ -100,35 +131,119 @@ export interface LineageRecord {
   dominanceScore: number;
   explorationRate?: number;
   stabilityScore?: number;
+  driftMagnitude?: number;
+  driftStatus?: string;
 }
 
 export interface TerritorySnapshot {
   snapshot: any;
   saturationLevel?: number;
+  pressureZones?: any[];
+  blindZones?: any[];
+  driftMagnitude?: number;
+  driftDirection?: string;
 }
 
-// NOTE: Tabelas dedicadas (adaptive_pressure_signals, adaptive_adjustments,
-// lineage_history, territory_snapshots, scenario_transitions) ainda não foram
-// criadas no schema. Mantemos as funções como no-ops resilientes para que o
-// fluxo do ecossistema funcione sem quebrar a build. Quando as tabelas forem
-// adicionadas via migração, basta trocar a implementação.
+// ============= Persistência real do ecossistema =============
 
-export async function persistPressureSignals(_generationId: string, _signals: PressureSignal[]): Promise<void> {
-  return;
+export async function persistPressureSignals(generationId: string, signals: PressureSignal[]): Promise<void> {
+  if (!signals.length) return;
+  const rows = signals.map((s) => ({
+    generation_id: generationId,
+    signal_type: s.signalType,
+    value: s.value,
+    threshold: s.threshold ?? null,
+    triggered: s.triggered,
+    details: s.details ?? {},
+  }));
+  const { error } = await supabase.from("adaptive_pressure_signals").insert(rows);
+  if (error) throw error;
 }
 
-export async function persistAdjustments(_generationId: string, _adjustments: AdjustmentRecord[]): Promise<void> {
-  return;
+export async function persistAdjustments(generationId: string, adjustments: AdjustmentRecord[]): Promise<void> {
+  if (!adjustments.length) return;
+  const rows = adjustments.map((a) => ({
+    generation_id: generationId,
+    adjustment_type: a.adjustmentType,
+    details: a.details,
+    applied: a.applied,
+  }));
+  const { error } = await supabase.from("adaptive_adjustments").insert(rows);
+  if (error) throw error;
 }
 
-export async function persistLineageHistory(_generationId: string, _lineages: LineageRecord[]): Promise<void> {
-  return;
+export async function persistLineageHistory(generationId: string, lineages: LineageRecord[]): Promise<void> {
+  if (!lineages.length) return;
+  const rows = lineages.map((l) => ({
+    generation_id: generationId,
+    lineage: l.lineage,
+    dominance_score: l.dominanceScore,
+    exploration_rate: l.explorationRate ?? null,
+    stability_score: l.stabilityScore ?? null,
+    drift_magnitude: l.driftMagnitude ?? null,
+    drift_status: l.driftStatus ?? null,
+  }));
+  const { error } = await supabase.from("lineage_history").insert(rows);
+  if (error) throw error;
 }
 
-export async function persistTerritorySnapshot(_generationId: string, _snapshot: TerritorySnapshot): Promise<void> {
-  return;
+export async function persistTerritorySnapshot(generationId: string, snap: TerritorySnapshot): Promise<void> {
+  const { error } = await supabase.from("territory_snapshots").insert({
+    generation_id: generationId,
+    snapshot: snap.snapshot,
+    saturation_level: snap.saturationLevel ?? null,
+    pressure_zones: snap.pressureZones ?? [],
+    blind_zones: snap.blindZones ?? [],
+    drift_magnitude: snap.driftMagnitude ?? null,
+    drift_direction: snap.driftDirection ?? null,
+  });
+  if (error) throw error;
 }
 
-export async function persistScenarioTransition(_fromScenario: string | null, _toScenario: string, _reason: string, _triggeredBy: any): Promise<void> {
-  return;
+export async function persistScenarioTransition(
+  fromScenario: string | null,
+  toScenario: string,
+  reason: string,
+  triggeredBy: any
+): Promise<void> {
+  const { error } = await supabase.from("scenario_transitions").insert({
+    from_scenario: fromScenario,
+    to_scenario: toScenario,
+    reason,
+    triggered_by: triggeredBy ?? {},
+  });
+  if (error) throw error;
+}
+
+// ============= Leitura do ecossistema (reidratação) =============
+
+export async function fetchRecentScenarioTransitions(limit = 20) {
+  const { data, error } = await supabase
+    .from("scenario_transitions")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchRecentLineageHistory(lineage: string, limit = 30) {
+  const { data, error } = await supabase
+    .from("lineage_history")
+    .select("*")
+    .eq("lineage", lineage)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function fetchRecentPressureSignals(limit = 100) {
+  const { data, error } = await supabase
+    .from("adaptive_pressure_signals")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
 }
