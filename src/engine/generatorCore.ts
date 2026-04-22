@@ -282,6 +282,16 @@ export async function generate(
     batch: batchName,
     value: targetBalanceA(batchName, finalScenario, preGenBalAdj),
   }));
+
+  const impactLog = {
+    mutationRate: `${beforeMutationRate.toFixed(3)} → ${afterMutationRate.toFixed(3)}`,
+    scenario: `${effectiveScenario} → ${finalScenario}`,
+    balanceAChanged: beforeBalanceA.some(
+      (b, i) => Math.abs(b.value - afterBalanceA[i].value) > 0.001,
+    ),
+  };
+
+  console.log("[PREGEN] IMPACTO", impactLog);
   console.log("[PREGEN] before", {
     originalScenario: scenario,
     effectiveScenario,

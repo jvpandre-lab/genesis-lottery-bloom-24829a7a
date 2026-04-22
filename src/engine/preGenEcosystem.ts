@@ -60,6 +60,7 @@ export function buildPreGenContext(
   allDraws: DrawRecord[],
   scenario: Scenario,
 ): PreGenContext {
+  console.log("[PREGEN] received recentResults:", recentResults.length);
   const DOMAIN = 100;
   const weightModifiers = new Array(DOMAIN).fill(1.0);
   const reasons: string[] = [];
@@ -75,6 +76,7 @@ export function buildPreGenContext(
   let cycleHealth: CycleHealth | null = null;
 
   if (recentResults.length === 0) {
+    console.log("[PREGEN] ⚠️ ERRO CRÍTICO: recentResults está vazio!");
     return {
       weightModifiers,
       scenarioOverride: null,
@@ -318,6 +320,7 @@ export function buildPreGenContext(
   );
   mutationRateModifier = Math.max(-0.05, Math.min(0.15, mutationRateModifier));
 
+  console.log("[PREGEN] hasData:", true);
   return {
     weightModifiers,
     scenarioOverride,

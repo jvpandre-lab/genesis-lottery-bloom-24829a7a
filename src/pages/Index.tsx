@@ -52,14 +52,24 @@ const Index = () => {
     setBusy(true);
     try {
       let recent: any[] = [];
+      let recentGens: any[] = [];
       try {
         recent = await fetchRecentDraws(8);
       } catch {}
+      try {
+        const stored = localStorage.getItem("recentGenerations");
+        if (stored) recentGens = JSON.parse(stored).slice(-5);
+      } catch {}
+      console.log(
+        "[INDEX] Calling generate with recentResults:",
+        recentGens.length,
+      );
       await new Promise((r) => setTimeout(r, 30));
       const res = await generate({
         count,
         scenario,
         recentDraws: recent,
+        recentResults: recentGens,
         twoBrains: true,
       });
       const { diagnostics, ...gen } = res;
