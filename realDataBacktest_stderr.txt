@@ -1,0 +1,16 @@
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/test/realDataBacktest.test.ts[2m > [22mBacktest Real Data[2m > [22mruns backtest against the last 50 draws
+[31m[1mError[22m: Test timed out in 600000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m src/test/realDataBacktest.test.ts:[2m222:5[22m[39m
+    [90m220| [39m
+    [90m221| [39m[34mdescribe[39m([32m"Backtest Real Data"[39m[33m,[39m () [33m=>[39m {
+    [90m222| [39m    [34mit[39m([32m"runs backtest against the last 50 draws"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   | [39m    [31m^[39m
+    [90m223| [39m        [35mawait[39m [34mmain[39m()[33m;[39m
+    [90m224| [39m    }[33m,[39m [34m600000[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+

@@ -11,6 +11,13 @@ describe("Backtest", () => {
     expect(countHits([1, 2, 3, 4, 5], [3, 4, 6])).toBe(2);
   });
 
+  it("countHits conta corretamente 50 números de jogo contra 20 dezenas de concurso", () => {
+    const game = Array.from({ length: 50 }, (_, i) => i); // 0..49
+    const draw = [3, 7, 15, 22, 30, 35, 40, 45, 49, 51, 60, 70, 80, 90, 99, 1, 2, 10, 20, 25];
+    const hits = countHits(game, draw);
+    expect(hits).toBe(10); // números 0..49 intersectam 10 elementos do sorteio
+  });
+
   it("backtest produz buckets coerentes", async () => {
     const gen = await generate({ count: 3, scenario: "hybrid", rng: mulberry32(11), twoBrains: true });
     const draws = Array.from({ length: 60 }, (_, i) => ({

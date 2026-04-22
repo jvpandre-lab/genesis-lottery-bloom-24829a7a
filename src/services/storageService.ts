@@ -247,3 +247,6 @@ export async function fetchRecentPressureSignals(limit = 100) {
   if (error) throw error;
   return data ?? [];
 }
+
+// Alias para compatibilidade
+export const getContestHistory = fetchAllDraws;

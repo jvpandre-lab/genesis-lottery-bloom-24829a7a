@@ -223,3 +223,137 @@ describe("Backtest Real Data", () => {
         await main();
     }, 600000);
 });
+
+describe("Backtest Multiple Window Sizes", () => {
+    it("runs backtest with 50, 100, and 200 contests using real data", async () => {
+        console.log('\n=== BACKTEST MÚLTIPLAS JANELAS - DADOS REAIS ===\n');
+
+        try {
+            const response = await fetch("https://loteriascaixa-api.herokuapp.com/api/lotomania");
+            let draws = await response.json();
+            draws = draws.sort((a: any, b: any) => a.concurso - b.concurso);
+            console.log(`Dados obtidos: ${draws.length} concursos\n`);
+
+            const windowSizes = [50, 100, 200];
+
+            for (const windowSize of windowSizes) {
+                const maxDraws = Math.min(windowSize, draws.length);
+                console.log(`\n--- BACKTEST ${maxDraws} CONCURSOS ---\n`);
+
+                const statsA = initStats();
+                const statsB = initStats();
+
+                const startIdx = Math.max(0, draws.length - maxDraws);
+                let historyDraws: DrawRecord[] = draws.slice(0, startIdx).map(d => ({
+                    contestNumber: d.concurso,
+                    drawDate: d.data,
+                    numbers: parseDezenas(d.dezenas)
+                }));
+
+                let recentResults: any[] = [];
+
+                for (let i = startIdx; i < draws.length; i++) {
+                    const currentReal = parseDezenas(draws[i].dezenas);
+                    const contest = draws[i].concurso;
+
+                    if (i % 20 === 0) {
+                        console.log(`Processando concurso ${contest}...`);
+                    }
+
+                    const seedA = contest * 10;
+                    const seedB = contest * 10;
+
+                    const inputA: GenerateInput = {
+                        count: 6,
+                        scenario: "hybrid",
+                        recentDraws: historyDraws.slice(-10),
+                        recentResults: [],
+                        rng: mulberry32(seedA),
+                        twoBrains: false,
+                        disableEngines: {
+                            preGenEcosystem: true,
+                            diversity: true,
+                            coverage: true,
+                            batchObjective: true,
+                        }
+                    };
+
+                    const inputB: GenerateInput = {
+                        count: 6,
+                        scenario: "hybrid",
+                        recentDraws: historyDraws.slice(-15),
+                        recentResults: recentResults,
+                        rng: mulberry32(seedB),
+                        twoBrains: true,
+                        disableEngines: {}
+                    };
+
+                    const resA = await generate(inputA);
+                    const resB = await generate(inputB);
+
+                    recentResults = [...recentResults, resB].slice(-5);
+
+                    const gamesA = resA.batches.flatMap(b => b.games);
+                    for (const g of gamesA) updateStats(statsA, g, currentReal);
+
+                    const gamesB = resB.batches.flatMap(b => b.games);
+                    for (const g of gamesB) {
+                        updateStats(statsB, { ...g, scenario: resB.scenario }, currentReal);
+                    }
+
+                    historyDraws.push({
+                        contestNumber: contest,
+                        drawDate: draws[i].data,
+                        numbers: currentReal
+                    });
+                }
+
+                const avgA = (statsA.totalHits / Math.max(1, statsA.totalGames)).toFixed(3);
+                const avgB = (statsB.totalHits / Math.max(1, statsB.totalGames)).toFixed(3);
+
+                console.log(`\nRESULTADOS ${maxDraws} CONCURSOS:`);
+                console.log(`Modo A (v1): ${statsA.totalGames} jogos, média ${avgA} acertos`);
+                console.log(`Modo B (v2): ${statsB.totalGames} jogos, média ${avgB} acertos`);
+                console.log(`Melhoria: ${((parseFloat(avgB) - parseFloat(avgA)) / parseFloat(avgA) * 100).toFixed(1)}%`);
+
+                // Salvar resultados detalhados
+                const detailedResults = {
+                    windowSize: maxDraws,
+                    modeA: {
+                        totalGames: statsA.totalGames,
+                        avgHits: parseFloat(avgA),
+                        distribution: {
+                            hits15: statsA.hits15,
+                            hits16: statsA.hits16,
+                            hits17: statsA.hits17,
+                            hits18: statsA.hits18,
+                            hits19: statsA.hits19,
+                            hits20: statsA.hits20
+                        }
+                    },
+                    modeB: {
+                        totalGames: statsB.totalGames,
+                        avgHits: parseFloat(avgB),
+                        distribution: {
+                            hits15: statsB.hits15,
+                            hits16: statsB.hits16,
+                            hits17: statsB.hits17,
+                            hits18: statsB.hits18,
+                            hits19: statsB.hits19,
+                            hits20: statsB.hits20
+                        }
+                    }
+                };
+
+                fs.writeFileSync(`backtest_${maxDraws}_results.json`, JSON.stringify(detailedResults, null, 2));
+                console.log(`Resultados salvos em backtest_${maxDraws}_results.json\n`);
+            }
+
+            console.log('=== BACKTEST MÚLTIPLAS JANELAS CONCLUÍDO ===');
+
+        } catch (e) {
+            console.error("Erro na execução do backtest múltiplo", e);
+            throw e;
+        }
+    }, 1200000); // 20 minutos timeout
+});

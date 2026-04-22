@@ -1,4 +1,4 @@
-import { Dezena, DrawRecord } from "@/engine/lotteryTypes";
+import { Dezena, DrawRecord, DOMAIN_MIN, DOMAIN_MAX, DRAWN_SIZE } from "@/engine/lotteryTypes";
 import { fetchRecentDraws, upsertDraws } from "./storageService";
 
 export interface ImportReport {
@@ -25,34 +25,32 @@ const CAIXA_API_URL = "https://loteriascaixa-api.herokuapp.com/api/lotomania";
  * Validação de Concurso Oficial (20 dezenas sorteadas)
  * Exige EXATAMENTE 20 números, domínio 00..99, garantindo unicidade.
  */
-export function validateDraw(rawNums: any[] | string): string[] | { error: string } {
+export function validateDraw(rawNums: any[] | string): Dezena[] | { error: string } {
   let numsArr: any[];
 
   if (Array.isArray(rawNums)) {
     numsArr = rawNums;
   } else {
-    numsArr = String(rawNums).split(/[,\s;|-]+/);
+    numsArr = String(rawNums).split(/[,\s;|-]+/).filter(Boolean);
   }
 
   const parsed = numsArr
     .map(n => {
       const numStr = String(n).trim();
+      if (!/^\d{1,2}$/.test(numStr)) return null;
       const numVal = Number(numStr);
-      if (Number.isFinite(numVal) && numVal >= 0 && numVal <= 99) {
-        return numVal.toString().padStart(2, "0");
-      }
-      return null;
+      if (!Number.isFinite(numVal) || numVal < DOMAIN_MIN || numVal > DOMAIN_MAX) return null;
+      return numVal as Dezena;
     })
-    .filter((n): n is string => n !== null);
+    .filter((n): n is Dezena => n !== null);
 
-  if (parsed.length !== 20) {
-    return { error: `invalid_length_expected_20_got_${parsed.length}` };
+  if (parsed.length !== DRAWN_SIZE) {
+    return { error: `invalid_length_expected_${DRAWN_SIZE}_got_${parsed.length}` };
   }
 
-  // Garantir unicidade
-  const unique = Array.from(new Set(parsed)).sort((a, b) => Number(a) - Number(b));
+  const unique = Array.from(new Set(parsed)).sort((a, b) => a - b) as Dezena[];
 
-  if (unique.length !== 20) {
+  if (unique.length !== DRAWN_SIZE) {
     return { error: "duplicate_numbers" };
   }
 
@@ -132,11 +130,11 @@ export async function syncDraws(): Promise<SyncReport> {
         // Registro ignorado: validação falhou
         report.recordsIgnoredDuplicate++;
       } else {
-        // Converter strings para números (Dezena[])
+        // Mantém o padrão numérico do sistema: Dezena[] ordenado para draws oficiais.
         toInsert.push({
           contestNumber: contest,
           drawDate: item.data ? normalizeDate(item.data) : undefined,
-          numbers: valid.map(n => Number(n)) as Dezena[],
+          numbers: valid,
           source: "api",
           syncedAt: timestamp,
           lastCheckedAt: timestamp
@@ -206,7 +204,7 @@ function parseJSON(content: string): { draws: DrawRecord[], report: ImportReport
     out.push({
       contestNumber: contest,
       drawDate: typeof drawDate === "string" ? drawDate.slice(0, 10) : undefined,
-      numbers: valid.map(n => Number(n)) as Dezena[],
+      numbers: valid,
       source: "manual",
       syncedAt: timestamp,
       lastCheckedAt: timestamp
@@ -257,7 +255,7 @@ function parseCSV(content: string): { draws: DrawRecord[], report: ImportReport 
     out.push({
       contestNumber: contest,
       drawDate,
-      numbers: valid.map(n => Number(n)) as Dezena[],
+      numbers: valid,
       source: "manual",
       syncedAt: timestamp,
       lastCheckedAt: timestamp

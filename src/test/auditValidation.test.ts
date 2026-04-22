@@ -15,7 +15,7 @@ describe("Auditoria de Validação (20 Dezenas Oficiais)", () => {
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
       expect(result).toHaveLength(20);
-      expect(result).toEqual(["02", "04", "05", "22", "23", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39"]);
+      expect(result).toEqual([2, 4, 5, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]);
     }
   });
 
@@ -67,7 +67,7 @@ describe("Auditoria de Validação (20 Dezenas Oficiais)", () => {
     const result = validateDraw(unordered);
     expect("error" in result).toBe(false);
     if (!("error" in result)) {
-      expect(result).toEqual(["02", "04", "05", "22", "23", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39"]);
+      expect(result).toEqual([2, 4, 5, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]);
     }
   });
 

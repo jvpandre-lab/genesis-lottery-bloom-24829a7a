@@ -99,6 +99,9 @@ Intervalo ±3σ: 1.51 - 18.49
    - [ ] Validar 2900+ concursos armazenados
 
 2. **Revalidação** (crítico)
+   - [ ] Executar validação imediata de testes unitários e pequenos casos
+     - `npx vitest run src/test/advanced.test.ts src/test/backtestSmallCases.test.ts src/test/temporalLeakage.test.ts`
+     - Ou `node validateImmediate.js`
    - [ ] Backtest 50 últimos concursos
    - [ ] Backtest 100 últimos concursos
    - [ ] Backtest 200 últimos concursos

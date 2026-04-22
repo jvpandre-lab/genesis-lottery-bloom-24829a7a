@@ -86,6 +86,9 @@ export interface Game {
   metrics: GameMetrics;
 }
 
+export type GeneratedGame = Game;
+export type GeneratedGameNumbers = Dezena[];
+
 export interface Batch {
   name: BatchName;
   purpose: string;
@@ -129,11 +132,15 @@ export interface GenerationResult {
   createdAt: string;
 }
 
-export interface DrawRecord {
+export type OfficialDrawNumbers = Dezena[];
+
+export interface OfficialDrawRecord {
   contestNumber: number;
   drawDate?: string;
-  numbers: Dezena[]; // EXATAMENTE 20 dezenas sorteadas oficialmente (não 50!)
+  numbers: OfficialDrawNumbers; // EXATAMENTE DRAWN_SIZE dezenas sorteadas oficialmente
   source?: "api" | "database" | "manual";
   syncedAt?: string;
   lastCheckedAt?: string;
 }
+
+export type DrawRecord = OfficialDrawRecord;

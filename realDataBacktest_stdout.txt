@@ -1,0 +1,273 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mC:/Users/User/Desktop/Lotomania/genesis-lottery-bloom-24829a7a[39m
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39mBaixando dados reais da API da Caixa (heroku proxy)...
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39mDownload completo: 2914 concursos obtidos.
+
+=== INICIANDO BACKTEST: ÚLTIMOS 50 CONCURSOS ===
+
+-- Simulando Concurso 2865 (Faltam 50)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2866 (Faltam 49)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2867 (Faltam 48)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2868 (Faltam 47)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2869 (Faltam 46)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2870 (Faltam 45)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2871 (Faltam 44)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2872 (Faltam 43)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2873 (Faltam 42)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2874 (Faltam 41)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2875 (Faltam 40)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2876 (Faltam 39)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2877 (Faltam 38)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2878 (Faltam 37)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2879 (Faltam 36)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2880 (Faltam 35)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2881 (Faltam 34)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2882 (Faltam 33)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2883 (Faltam 32)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2884 (Faltam 31)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2885 (Faltam 30)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2886 (Faltam 29)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2887 (Faltam 28)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2888 (Faltam 27)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2889 (Faltam 26)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2890 (Faltam 25)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2891 (Faltam 24)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2892 (Faltam 23)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2893 (Faltam 22)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2894 (Faltam 21)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2895 (Faltam 20)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2896 (Faltam 19)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2897 (Faltam 18)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2898 (Faltam 17)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2899 (Faltam 16)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2900 (Faltam 15)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2901 (Faltam 14)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2902 (Faltam 13)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2903 (Faltam 12)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2904 (Faltam 11)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2905 (Faltam 10)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2906 (Faltam 9)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2907 (Faltam 8)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2908 (Faltam 7)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2909 (Faltam 6)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2910 (Faltam 5)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2911 (Faltam 4)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2912 (Faltam 3)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2913 (Faltam 2)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+-- Simulando Concurso 2914 (Faltam 1)
+
+[90mstdout[2m | src/test/realDataBacktest.test.ts[2m > [22m[2mBacktest Real Data[2m > [22m[2mruns backtest against the last 50 draws
+[22m[39m
+=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (1812.8s) ===
+=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (1812.8s) ===
+[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.080
+ -> 15 Acertos: 2
+ -> 16 Acertos: 0
+ -> 17 Acertos: 0
+ -> 18 Acertos: 0
+ -> 19 Acertos: 0
+ -> 20 Acertos: 0
+ -> 0 Acertos : 0
+ -> Jogos < 10: 115 (lixo)
+
+[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 9.880
+ -> 15 Acertos: 1
+ -> 16 Acertos: 0
+ -> 17 Acertos: 0
+ -> 18 Acertos: 0
+ -> 19 Acertos: 0
+ -> 20 Acertos: 0
+ -> 0 Acertos : 0
+ -> Jogos < 10: 113 (lixo)
+
+
+[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.080
+ -> 15 Acertos: 2
+ -> 16 Acertos: 0
+ -> 17 Acertos: 0
+ -> 18 Acertos: 0
+ -> 19 Acertos: 0
+ -> 20 Acertos: 0
+ -> 0 Acertos : 0
+ -> Jogos < 10: 115 (lixo)
+ -> Avaliação de Linhagens:
+    - conservative: 10.040 avg (50 picks)
+    - coverage: 9.250 avg (4 picks)
+    - dispersive: 10.235 avg (98 picks)
+    - anticrowd: 9.980 avg (50 picks)
+    - chaotic: 10.031 avg (98 picks)
+
+[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 9.880
+ -> 15 Acertos: 1
+ -> 16 Acertos: 0
+ -> 17 Acertos: 0
+ -> 18 Acertos: 0
+ -> 19 Acertos: 0
+ -> 20 Acertos: 0
+ -> 0 Acertos : 0
+ -> Jogos < 10: 113 (lixo)
+ -> Avaliação de Linhagens:
+    - coverage: 9.385 avg (26 picks)
+    - hybrid: 9.381 avg (21 picks)
+    - conservative: 9.972 avg (253 picks)
+
+ [31m×[39m src/test/realDataBacktest.test.ts[2m > [22mBacktest Real Data[2m > [22mruns backtest against the last 50 draws[33m 1821871[2mms[22m[39m
+[31m   → Test timed out in 600000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m   Start at [22m 11:24:03
+[2m   Duration [22m 1899.49s[2m (transform 2.70s, setup 4.87s, collect 4.87s, tests 1821.88s, environment 32.62s, prepare 2.96s)[22m
+
