@@ -205,7 +205,9 @@ async function main() {
     console.log("Baixando dados reais da API da Caixa (heroku proxy)...");
     try {
         const response = await fetch("https://loteriascaixa-api.herokuapp.com/api/lotomania");
-        const draws = await response.json();
+        let draws = await response.json();
+        // Ordenar por concurso crescente para garantir temporalidade
+        draws = draws.sort((a: any, b: any) => a.concurso - b.concurso);
         console.log(`Download completo: ${draws.length} concursos obtidos.`);
 
         // rodar backtests paralelos pros periodos. Vamos rodar sequencial por conta da memoria.
