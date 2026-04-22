@@ -16,6 +16,7 @@ import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { EcosystemDashboard } from "@/components/EcosystemDashboard";
 import { TacticalLotePanel } from "@/components/TacticalLotePanel";
 import { BrainTensionDiagnostics } from "@/components/BrainTensionDiagnostics";
+import { EvolutionTimeline } from "@/components/EvolutionTimeline";
 import { recommend } from "@/engine/recommendationEngine";
 import { globalPressure } from "@/engine/adaptivePressureEngine";
 import { integrateEcosystemFlow } from "@/engine/ecoIntegration";
@@ -193,6 +194,7 @@ const Index = () => {
                 <EcosystemDashboard />
                 <TacticalLotePanel />
                 <BrainTensionDiagnostics />
+                <EvolutionTimeline />
                 <div className="glass rounded-xl p-5 space-y-3">
                   <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
                   <LineageBreakdown result={result} />
