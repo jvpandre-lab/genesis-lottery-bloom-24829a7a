@@ -1,4 +1,11 @@
-import { getContestHistory } from './src/services/storageService.js';
+// Mock data for testing - simulating real contest draws
+const mockDraws = Array.from({ length: 300 }, (_, i) => ({
+  contestNumber: 2000 + i,
+  numbers: Array.from({ length: 20 }, (_, k) => (i * 3 + k * 7) % 100),
+  drawDate: new Date(2024, 0, 1 + i).toISOString(),
+  source: "mock"
+}));
+
 import { backtest } from './src/engine/backtestEngine.js';
 import { generate } from './src/engine/generatorCore.js';
 
@@ -6,15 +13,9 @@ async function runSimpleBacktest() {
   try {
     console.log('=== BACKTEST SIMPLES LOTOMANIA ===\n');
 
-    // Obter dados reais dos concursos
-    console.log('Obtendo histórico de concursos...');
-    const allDraws = await getContestHistory();
-    console.log(`Encontrados ${allDraws.length} concursos no histórico.\n`);
-
-    if (allDraws.length < 200) {
-      console.log('ATENÇÃO: Histórico insuficiente para teste completo de 200 concursos.');
-      console.log('Usando dados disponíveis.\n');
-    }
+    // Usar dados mock simulando concursos reais
+    const allDraws = mockDraws;
+    console.log(`Usando ${allDraws.length} concursos simulados (dados mock).\n`);
 
     // Gerar uma geração simples para teste
     console.log('Gerando jogos para backtest...');
@@ -58,17 +59,17 @@ async function runSimpleBacktest() {
 
     console.log('=== DESEMPENHO POR LINHAGEM ===');
     for (const lineage of report.perLineage) {
-      console.log(`${lineage.lineage}: ${lineage.avgHits.toFixed(3)} avg hits, ${lineage.freq15plus.toFixed(3)} freq 15+`);
+      console.log(`${lineage.lineage}: ${lineage.avgHits.toFixed(3)} avg hits, ${(lineage.freq15plus * 100).toFixed(2)}% freq 15+`);
     }
 
     console.log('\n=== DESEMPENHO POR BATCH ===');
     for (const batch of report.perBatch) {
-      console.log(`${batch.batch}: ${batch.avgHits.toFixed(3)} avg hits, ${batch.freq15plus.toFixed(3)} freq 15+`);
+      console.log(`${batch.batch}: ${batch.avgHits.toFixed(3)} avg hits, ${(batch.freq15plus * 100).toFixed(2)}% freq 15+`);
     }
 
     console.log('\n=== DESEMPENHO POR CENÁRIO ===');
     for (const scenario of report.perScenario) {
-      console.log(`${scenario.scenario}: ${scenario.avgHits.toFixed(3)} avg hits, ${scenario.freq15plus.toFixed(3)} freq 15+`);
+      console.log(`${scenario.scenario}: ${scenario.avgHits.toFixed(3)} avg hits, ${(scenario.freq15plus * 100).toFixed(2)}% freq 15+`);
     }
 
     console.log(`\nGerações analisadas: ${report.generationsAnalyzed}`);
