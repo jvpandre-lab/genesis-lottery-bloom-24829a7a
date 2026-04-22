@@ -57,13 +57,17 @@ const Index = () => {
         recent = await fetchRecentDraws(8);
       } catch {}
       try {
-        const stored = localStorage.getItem("recentGenerations");
-        if (stored) recentGens = JSON.parse(stored).slice(-5);
-      } catch {}
-      console.log(
-        "[INDEX] Calling generate with recentResults:",
-        recentGens.length,
-      );
+        recentGens = await fetchRecentGenerations(10);
+        console.log(
+          "[INDEX] fetchRecentGenerations from Supabase:",
+          recentGens.length,
+        );
+      } catch (err) {
+        console.warn(
+          "[INDEX] fetchRecentGenerations failed, falling back to empty:",
+          err,
+        );
+      }
       await new Promise((r) => setTimeout(r, 30));
       const res = await generate({
         count,

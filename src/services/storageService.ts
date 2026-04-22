@@ -1,5 +1,5 @@
-import { supabase } from "@/integrations/supabase/client";
 import { Dezena, DrawRecord, GenerationResult } from "@/engine/lotteryTypes";
+import { supabase } from "@/integrations/supabase/client";
 
 export async function fetchRecentDraws(limit = 10): Promise<DrawRecord[]> {
   const { data, error } = await supabase
@@ -61,12 +61,18 @@ export async function upsertDraws(draws: DrawRecord[]): Promise<number> {
   }));
   const { error, count } = await supabase
     .from("lotomania_draws")
-    .upsert(rows, { onConflict: "contest_number", count: "exact", ignoreDuplicates: true });
+    .upsert(rows, {
+      onConflict: "contest_number",
+      count: "exact",
+      ignoreDuplicates: true,
+    });
   if (error) throw error;
   return count ?? rows.length;
 }
 
-export async function persistGeneration(result: GenerationResult): Promise<string> {
+export async function persistGeneration(
+  result: GenerationResult,
+): Promise<string> {
   const { data: gen, error: e1 } = await supabase
     .from("generations")
     .insert({
@@ -101,7 +107,9 @@ export async function persistGeneration(result: GenerationResult): Promise<strin
       numbers: g.numbers,
       lineage: g.lineage,
       score: g.score.total,
-      metrics: JSON.parse(JSON.stringify({ score: g.score, gameMetrics: g.metrics })),
+      metrics: JSON.parse(
+        JSON.stringify({ score: g.score, gameMetrics: g.metrics }),
+      ),
       position: i,
     }));
     const { error: e3 } = await supabase.from("generation_games").insert(rows);
@@ -110,6 +118,73 @@ export async function persistGeneration(result: GenerationResult): Promise<strin
   // Mutar id do resultado em memória (para integração de ecossistema)
   (result as any).id = generationId;
   return generationId;
+}
+
+/**
+ * Busca gerações recentes persistidas no banco para alimentar o ecossistema (recentResults).
+ * Reconstrói o objeto GenerationResult a partir dos dados persistidos.
+ */
+export async function fetchRecentGenerations(
+  limit = 10,
+): Promise<GenerationResult[]> {
+  const { data: gens, error: e1 } = await supabase
+    .from("generations")
+    .select("id, label, scenario, requested_count, params, metrics, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (e1) throw e1;
+  if (!gens || gens.length === 0) return [];
+
+  const results: GenerationResult[] = [];
+
+  for (const gen of gens) {
+    const { data: batches, error: e2 } = await supabase
+      .from("generation_batches")
+      .select("id, name, purpose, dominant_lineage, score, metrics")
+      .eq("generation_id", gen.id);
+
+    if (e2) throw e2;
+
+    const reconstructedBatches = [];
+    for (const batch of batches ?? []) {
+      const { data: games, error: e3 } = await supabase
+        .from("generation_games")
+        .select("numbers, lineage, score, metrics")
+        .eq("batch_id", batch.id);
+
+      if (e3) throw e3;
+
+      reconstructedBatches.push({
+        name: batch.name as any,
+        purpose: batch.purpose,
+        dominant: batch.dominant_lineage,
+        avgScore: batch.score,
+        diversity: batch.metrics?.diversity ?? 0.5,
+        games: (games ?? []).map((g: any) => ({
+          numbers: g.numbers,
+          lineage: g.lineage,
+          score: g.metrics?.score ?? {
+            total: g.score,
+            diversity: 0.5,
+            balance: 0.5,
+            coverage: 0.5,
+          },
+          metrics: g.metrics?.gameMetrics ?? {},
+        })),
+      });
+    }
+
+    results.push({
+      label: gen.label,
+      scenario: gen.scenario,
+      requestedCount: gen.requested_count,
+      batches: reconstructedBatches,
+      metrics: gen.metrics ?? {},
+    });
+  }
+
+  return results.reverse(); // Retorna em ordem crescente de criação
 }
 
 export interface PressureSignal {
@@ -146,7 +221,10 @@ export interface TerritorySnapshot {
 
 // ============= Persistência real do ecossistema =============
 
-export async function persistPressureSignals(generationId: string, signals: PressureSignal[]): Promise<void> {
+export async function persistPressureSignals(
+  generationId: string,
+  signals: PressureSignal[],
+): Promise<void> {
   if (!signals.length) return;
   const rows = signals.map((s) => ({
     generation_id: generationId,
@@ -156,11 +234,16 @@ export async function persistPressureSignals(generationId: string, signals: Pres
     triggered: s.triggered,
     details: s.details ?? {},
   }));
-  const { error } = await supabase.from("adaptive_pressure_signals").insert(rows);
+  const { error } = await supabase
+    .from("adaptive_pressure_signals")
+    .insert(rows);
   if (error) throw error;
 }
 
-export async function persistAdjustments(generationId: string, adjustments: AdjustmentRecord[]): Promise<void> {
+export async function persistAdjustments(
+  generationId: string,
+  adjustments: AdjustmentRecord[],
+): Promise<void> {
   if (!adjustments.length) return;
   const rows = adjustments.map((a) => ({
     generation_id: generationId,
@@ -172,7 +255,10 @@ export async function persistAdjustments(generationId: string, adjustments: Adju
   if (error) throw error;
 }
 
-export async function persistLineageHistory(generationId: string, lineages: LineageRecord[]): Promise<void> {
+export async function persistLineageHistory(
+  generationId: string,
+  lineages: LineageRecord[],
+): Promise<void> {
   if (!lineages.length) return;
   const rows = lineages.map((l) => ({
     generation_id: generationId,
@@ -187,7 +273,10 @@ export async function persistLineageHistory(generationId: string, lineages: Line
   if (error) throw error;
 }
 
-export async function persistTerritorySnapshot(generationId: string, snap: TerritorySnapshot): Promise<void> {
+export async function persistTerritorySnapshot(
+  generationId: string,
+  snap: TerritorySnapshot,
+): Promise<void> {
   const { error } = await supabase.from("territory_snapshots").insert({
     generation_id: generationId,
     snapshot: snap.snapshot,
@@ -204,7 +293,7 @@ export async function persistScenarioTransition(
   fromScenario: string | null,
   toScenario: string,
   reason: string,
-  triggeredBy: any
+  triggeredBy: any,
 ): Promise<void> {
   const { error } = await supabase.from("scenario_transitions").insert({
     from_scenario: fromScenario,
