@@ -214,7 +214,7 @@ const Index = () => {
 
       <footer className="border-t border-border/40 mt-16">
         <div className="container py-6 text-[11px] text-muted-foreground flex items-center justify-between">
-          <span>Lotomania IA da Sorte · sistema experimental, não garante prêmios.</span>
+          <span>Lotomania IA da Sorte</span>
           <span className="font-mono num-mono">domínio 00–99 · 50 dezenas/jogo</span>
         </div>
       </footer>
