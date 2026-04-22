@@ -22,8 +22,8 @@ let globalLastSuccessfulSync: string | null = null;
 const CAIXA_API_URL = "https://loteriascaixa-api.herokuapp.com/api/lotomania";
 
 /**
- * Validação Nuclear (Domínio Lotomania) - Como estritamente solicitado
- * Exige EXATAMENTE 50 números, domínio 00..99, garantindo unicidade.
+ * Validação de Concurso Oficial (20 dezenas sorteadas)
+ * Exige EXATAMENTE 20 números, domínio 00..99, garantindo unicidade.
  */
 export function validateDraw(rawNums: any[] | string): string[] | { error: string } {
   let numsArr: any[];
@@ -45,15 +45,14 @@ export function validateDraw(rawNums: any[] | string): string[] | { error: strin
     })
     .filter((n): n is string => n !== null);
 
-  if (parsed.length !== 50) {
-    return { error: `invalid_length_expected_50_got_${parsed.length}` };
+  if (parsed.length !== 20) {
+    return { error: `invalid_length_expected_20_got_${parsed.length}` };
   }
 
-  // Garantir unicidade sem bagunçar a ordem de forma que cause problemas 
-  // (mas set tira as duplicatas, logo se cair length falha embaixo)
+  // Garantir unicidade
   const unique = Array.from(new Set(parsed)).sort((a, b) => Number(a) - Number(b));
 
-  if (unique.length !== 50) {
+  if (unique.length !== 20) {
     return { error: "duplicate_numbers" };
   }
 
@@ -130,13 +129,14 @@ export async function syncDraws(): Promise<SyncReport> {
       const valid = validateDraw(rawNums);
 
       if ("error" in valid) {
-        // Registro ignorado silenciosamente no loop de upsert, mas entra na logica manual se quisermos
-        report.recordsIgnoredDuplicate++; // Usando essa flag genérica ou podemos criar uma discarded API count
+        // Registro ignorado: validação falhou
+        report.recordsIgnoredDuplicate++;
       } else {
+        // Converter strings para números (Dezena[])
         toInsert.push({
           contestNumber: contest,
           drawDate: item.data ? normalizeDate(item.data) : undefined,
-          numbers: valid, // string[]
+          numbers: valid.map(n => Number(n)) as Dezena[],
           source: "api",
           syncedAt: timestamp,
           lastCheckedAt: timestamp
@@ -206,7 +206,7 @@ function parseJSON(content: string): { draws: DrawRecord[], report: ImportReport
     out.push({
       contestNumber: contest,
       drawDate: typeof drawDate === "string" ? drawDate.slice(0, 10) : undefined,
-      numbers: valid,
+      numbers: valid.map(n => Number(n)) as Dezena[],
       source: "manual",
       syncedAt: timestamp,
       lastCheckedAt: timestamp
@@ -257,7 +257,7 @@ function parseCSV(content: string): { draws: DrawRecord[], report: ImportReport 
     out.push({
       contestNumber: contest,
       drawDate,
-      numbers: valid,
+      numbers: valid.map(n => Number(n)) as Dezena[],
       source: "manual",
       syncedAt: timestamp,
       lastCheckedAt: timestamp

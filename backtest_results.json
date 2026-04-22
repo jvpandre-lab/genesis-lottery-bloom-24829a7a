@@ -79,5 +79,5 @@
       }
     }
   },
-  "reportStr": "=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (910.2s) ===\n[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.080\n -> 15 Acertos: 2\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 115 (lixo)\n\n[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 9.880\n -> 15 Acertos: 1\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 113 (lixo)\n"
+  "reportStr": "=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (1035.5s) ===\n[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.080\n -> 15 Acertos: 2\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 115 (lixo)\n\n[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 9.880\n -> 15 Acertos: 1\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 113 (lixo)\n"
 }

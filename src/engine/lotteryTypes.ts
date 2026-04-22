@@ -132,7 +132,7 @@ export interface GenerationResult {
 export interface DrawRecord {
   contestNumber: number;
   drawDate?: string;
-  numbers: Dezena[] | string[]; // Suporte explícito para numérico e formato "00" normalizado
+  numbers: Dezena[]; // EXATAMENTE 20 dezenas sorteadas oficialmente (não 50!)
   source?: "api" | "database" | "manual";
   syncedAt?: string;
   lastCheckedAt?: string;
