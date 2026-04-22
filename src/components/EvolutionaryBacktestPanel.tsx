@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Rewind, TrendingUp, TrendingDown } from "lucide-react";
-import { fetchAllDraws, countDraws } from "@/services/storageService";
-import { backtestEvolutionaryRetrospective, EvolutionaryBacktestReport } from "@/engine/backtestEngine";
+import {
+  backtestEvolutionaryRetrospective,
+  EvolutionaryBacktestReport,
+} from "@/engine/backtestEngine";
 import { generate } from "@/engine/generatorCore";
 import { Scenario } from "@/engine/lotteryTypes";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { countDraws, fetchAllDraws } from "@/services/storageService";
+import { Loader2, Rewind, TrendingDown, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
 
 interface Props {
   scenario: Scenario;
@@ -20,7 +23,9 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
   const [progress, setProgress] = useState<string>("");
 
   useEffect(() => {
-    countDraws().then(setDrawsTotal).catch(() => setDrawsTotal(0));
+    countDraws()
+      .then(setDrawsTotal)
+      .catch(() => setDrawsTotal(0));
   }, []);
 
   async function run() {
@@ -45,16 +50,16 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
         allDraws,
         scenario,
         async (input) => {
-          // gera sem two-brains para velocidade no backtest evolutivo
+          // gera com two-brains ATIVO para medir o sistema real de produção
           const res = await generate({
             count: 5,
             scenario: input.scenario,
             recentDraws: input.recentDraws,
-            twoBrains: false,
+            twoBrains: true,
           });
           const { diagnostics, ...gen } = res;
           return gen as any;
-        }
+        },
       );
 
       setReport(rep);
@@ -63,7 +68,11 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
         description: `${rep.generations.length} gerações simuladas contra o histórico real.`,
       });
     } catch (e: any) {
-      toast({ title: "Falha no backtest evolutivo", description: e?.message ?? "Erro", variant: "destructive" });
+      toast({
+        title: "Falha no backtest evolutivo",
+        description: e?.message ?? "Erro",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
       setProgress("");
@@ -75,10 +84,12 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-sm font-semibold tracking-tight flex items-center gap-2">
-            <Rewind className="h-4 w-4 text-primary" /> Backtest evolutivo retroativo
+            <Rewind className="h-4 w-4 text-primary" /> Backtest evolutivo
+            retroativo
           </h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Roda o sistema como se estivesse no passado, usando só draws disponíveis até cada ponto.
+            Roda o sistema como se estivesse no passado, usando só draws
+            disponíveis até cada ponto.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -93,34 +104,66 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
             <option value={12}>12 gens</option>
             <option value={20}>20 gens</option>
           </select>
-          <Button size="sm" variant="outline" onClick={run} disabled={busy || drawsTotal === 0}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={run}
+            disabled={busy || drawsTotal === 0}
+          >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Executar"}
           </Button>
         </div>
       </div>
 
       {progress && (
-        <div className="text-[11px] text-muted-foreground italic">{progress}</div>
+        <div className="text-[11px] text-muted-foreground italic">
+          {progress}
+        </div>
       )}
 
       {drawsTotal === 0 && (
-        <div className="text-[11px] text-warning/90">Importe um histórico para habilitar.</div>
+        <div className="text-[11px] text-warning/90">
+          Importe um histórico para habilitar.
+        </div>
       )}
 
       {report && (
         <div className="space-y-4">
           {/* Overall trends */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Metric label="Acertos médios" value={report.overall.avgHits.toFixed(2)} />
-            <Metric label="15+" value={`${(report.overall.freq15plus * 100).toFixed(2)}%`} />
-            <Metric label="16+" value={`${(report.overall.freq16plus * 100).toFixed(2)}%`} />
-            <Metric label="17+" value={`${(report.overall.freq17plus * 100).toFixed(2)}%`} />
+            <Metric
+              label="Acertos médios"
+              value={report.overall.avgHits.toFixed(2)}
+            />
+            <Metric
+              label="15+"
+              value={`${(report.overall.freq15plus * 100).toFixed(2)}%`}
+            />
+            <Metric
+              label="16+"
+              value={`${(report.overall.freq16plus * 100).toFixed(2)}%`}
+            />
+            <Metric
+              label="17+"
+              value={`${(report.overall.freq17plus * 100).toFixed(2)}%`}
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-2">
-            <Trend label="Estabilidade" value={report.overall.stabilityTrend} invert />
-            <Trend label="Saturação territorial" value={report.overall.saturationTrend} />
-            <Trend label="Convergência" value={report.overall.convergenceTrend} invert />
+            <Trend
+              label="Estabilidade"
+              value={report.overall.stabilityTrend}
+              invert
+            />
+            <Trend
+              label="Saturação territorial"
+              value={report.overall.saturationTrend}
+            />
+            <Trend
+              label="Convergência"
+              value={report.overall.convergenceTrend}
+              invert
+            />
           </div>
 
           {/* Per-generation curve */}
@@ -146,12 +189,20 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Section title="Por linhagem">
               {report.perLineage.slice(0, 6).map((l) => (
-                <Row key={l.lineage} label={l.lineage} value={`${l.avgHits.toFixed(2)} (${(l.freq15plus * 100).toFixed(2)}% 15+)`} />
+                <Row
+                  key={l.lineage}
+                  label={l.lineage}
+                  value={`${l.avgHits.toFixed(2)} (${(l.freq15plus * 100).toFixed(2)}% 15+)`}
+                />
               ))}
             </Section>
             <Section title="Por cenário">
               {report.perScenario.map((s) => (
-                <Row key={s.scenario} label={s.scenario} value={`${s.avgHits.toFixed(2)} (${(s.freq15plus * 100).toFixed(2)}% 15+)`} />
+                <Row
+                  key={s.scenario}
+                  label={s.scenario}
+                  value={`${s.avgHits.toFixed(2)} (${(s.freq15plus * 100).toFixed(2)}% 15+)`}
+                />
               ))}
             </Section>
           </div>
@@ -164,13 +215,23 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
       <div className="text-base font-mono num-mono mt-1">{value}</div>
     </div>
   );
 }
 
-function Trend({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
+function Trend({
+  label,
+  value,
+  invert,
+}: {
+  label: string;
+  value: number;
+  invert?: boolean;
+}) {
   // invert=true => slope positivo é ruim (estabilidade=variância subindo, convergência subindo)
   const positiveIsBad = !!invert;
   const isUp = value > 0;
@@ -178,20 +239,43 @@ function Trend({ label, value, invert }: { label: string; value: number; invert?
   return (
     <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3 flex items-center justify-between">
       <div>
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-        <div className="text-xs font-mono num-mono mt-1">{value.toFixed(4)}</div>
+        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          {label}
+        </div>
+        <div className="text-xs font-mono num-mono mt-1">
+          {value.toFixed(4)}
+        </div>
       </div>
-      <div className={cn("h-7 w-7 rounded-full flex items-center justify-center", isHealthy ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive")}>
-        {isUp ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+      <div
+        className={cn(
+          "h-7 w-7 rounded-full flex items-center justify-center",
+          isHealthy
+            ? "bg-success/20 text-success"
+            : "bg-destructive/20 text-destructive",
+        )}
+      >
+        {isUp ? (
+          <TrendingUp className="h-4 w-4" />
+        ) : (
+          <TrendingDown className="h-4 w-4" />
+        )}
       </div>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">{title}</div>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+        {title}
+      </div>
       <div className="space-y-1">{children}</div>
     </div>
   );
