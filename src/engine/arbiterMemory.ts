@@ -156,31 +156,34 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
       createdAt: row.created_at,
       chosen: row.scores?.chosen || {
         brain: row.chosen_brain || "A",
-        lineage: row.lineage_a || "A1",
-        scoreTotal: row.score_chosen || 0,
-        diversity: row.diversity_marginal || 0,
+        lineage: row.chosen_lineage || "A1",
+        scoreTotal: row.chosen_score || 0,
+        diversity: row.marginal_diversity || 0,
         coverageVal: row.coverage || 0,
         clusterVal: row.cluster || 0,
-        value: row.score_chosen || 0,
+        value: row.chosen_score || 0,
       },
       rejected: row.scores?.rejected || {
         brain: row.rejected_brain || "B",
-        lineage: row.lineage_b || "B1",
-        scoreTotal: row.score_rejected || 0,
+        lineage: row.rejected_lineage || "B1",
+        scoreTotal: row.rejected_score || 0,
         diversity: 0,
         coverageVal: 0,
         clusterVal: 0,
-        value: row.score_rejected || 0,
+        value: row.rejected_score || 0,
       },
       context: {
-        batchName: row.batch || "Alpha",
+        batchName: row.batch_name || "Alpha",
         scenario: row.scenario || "conservative",
         mutationRate: row.mutation_rate || 0,
         balanceA: row.balance_a || 0.5,
-        balanceAAdjustment: 0,
-        slot: 0,
+        balanceAAdjustment: row.metadata?.balanceAAdjustment || 0,
+        slot: row.slot || 0,
       },
-      good: row.decision === "chosen",
+      good:
+        typeof row.outcome_good === "boolean"
+          ? row.outcome_good
+          : row.decision === "chosen",
     }));
 
     // Rebuild stats from decisions

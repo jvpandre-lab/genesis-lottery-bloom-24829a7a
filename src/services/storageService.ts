@@ -374,24 +374,32 @@ export async function persistArbiterDecision(decision: {
   const { error } = await supabase.from("arbiter_decisions").insert({
     id: decision.id,
     created_at: decision.createdAt,
-    decision: decision.good ? "chosen" : "rejected",
+    batch_name: decision.context.batchName,
+    scenario: decision.context.scenario,
+    slot: decision.context.slot,
+    mutation_rate: decision.context.mutationRate,
+    balance_a: decision.context.balanceA,
     chosen_brain: decision.chosen.brain,
     rejected_brain: decision.rejected.brain,
+    chosen_lineage: decision.chosen.lineage,
+    rejected_lineage: decision.rejected.lineage,
+    chosen_score: decision.chosen.scoreTotal,
+    rejected_score: decision.rejected.scoreTotal,
+    marginal_diversity: decision.chosen.diversity,
+    coverage: decision.chosen.coverageVal,
+    cluster: decision.chosen.clusterVal,
+    memory_bias: null,
+    decision: decision.good ? "chosen" : "rejected",
+    outcome_good: decision.good,
     scores: {
       chosen: decision.chosen,
       rejected: decision.rejected,
     },
-    scenario: decision.context.scenario,
-    batch: decision.context.batchName,
-    mutation_rate: decision.context.mutationRate,
-    balance_a: decision.context.balanceA,
-    lineage_a: decision.chosen.lineage,
-    lineage_b: decision.rejected.lineage,
-    diversity_marginal: decision.chosen.diversity,
-    coverage: decision.chosen.coverageVal,
-    cluster: decision.chosen.clusterVal,
-    score_chosen: decision.chosen.scoreTotal,
-    score_rejected: decision.rejected.scoreTotal,
+    metadata: {
+      balanceAAdjustment: decision.context.balanceAAdjustment,
+      source: "arbiterMemory",
+    },
+    source: "arbiterMemory",
   });
   if (error) {
     if (error.code === "PGRST205") {
@@ -413,16 +421,21 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
     rejected_brain: "A" | "B";
     scores: any;
     scenario: string;
-    batch: string;
+    batch_name: string;
+    slot: number;
     mutation_rate: number;
     balance_a: number;
-    lineage_a: string;
-    lineage_b: string;
+    chosen_lineage: string;
+    rejected_lineage: string;
+    chosen_score: number;
+    rejected_score: number;
     diversity_marginal: number;
     coverage: number;
     cluster: number;
-    score_chosen: number;
-    score_rejected: number;
+    memory_bias: number | null;
+    outcome_good: boolean | null;
+    metadata: any;
+    source: string | null;
   }>
 > {
   const { data, error } = await supabase
@@ -449,7 +462,10 @@ export async function updateArbiterDecisionOutcome(
 ): Promise<void> {
   const { error } = await supabase
     .from("arbiter_decisions")
-    .update({ decision: good ? "chosen" : "rejected" })
+    .update({
+      decision: good ? "chosen" : "rejected",
+      outcome_good: good,
+    })
     .eq("id", id);
 
   if (error) {
