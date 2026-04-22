@@ -51,7 +51,7 @@ export function buildPreGenContext(
     let targetBalanceAdjustment = 0;
     let mutationRateModifier = 0;
     const lineagePenalties: Partial<Record<LineageId, number>> = {};
-    const tacticalNeeds: Partial<Record<BatchName, TacticalRole[]>> = {};
+    let tacticalNeeds: Partial<Record<BatchName, TacticalRole[]>> = {};
 
     if (recentResults.length === 0) {
         return {
