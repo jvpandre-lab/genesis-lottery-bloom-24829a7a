@@ -40,7 +40,7 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
       if (report.status === "success") {
         toast({ title: "Sincronização OK", description: `${report.newRecordsAdded} concursos novos adicionados. ${report.recordsIgnoredDuplicate} já registrados.` });
       } else if (report.status === "fallback_banco") {
-        toast({ title: "Fallback Automático", description: "API da Caixa demorou a responder ou falhou. Operando 100% com dados do banco atual.", variant: "destructive" });
+        toast({ title: "Fallback Automático", description: "API da Caixa demorou a responder ou falhou. Operando 100% com dados do banco atual." });
       } else {
         toast({ title: "Erro Crítico", description: report.error || "A API e o Banco falharam simultaneamente.", variant: "destructive" });
       }

@@ -87,7 +87,7 @@ export class TacticalRoleEngine {
     };
   }
 
-  private determineRole(game: Game, territory: TerritoryMap): TacticalRole {
+  determineRole(game: Game, territory: TerritoryMap): TacticalRole {
     const numbers = game.numbers;
     const entropy = this.calculateEntropy(numbers);
     const novelty = this.calculateNovelty(numbers, territory);
