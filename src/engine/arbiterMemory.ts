@@ -1,4 +1,8 @@
-import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchArbiterDecisions,
+  persistArbiterDecision,
+  updateArbiterDecisionOutcome,
+} from "@/services/storageService";
 import { BatchName, LineageId, Scenario } from "./lotteryTypes";
 
 const STORAGE_KEY = "arbiterMemory.v1";
@@ -142,72 +146,77 @@ async function loadState(): Promise<ArbiterMemoryState> {
 }
 
 async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
-  const { data, error } = await supabase
-    .from("arbiter_decisions")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(MAX_DECISIONS);
+  try {
+    const data = await fetchArbiterDecisions(MAX_DECISIONS);
 
-  if (error || !data) return null;
+    if (!data || data.length === 0) return null;
 
-  const decisions: ArbiterDecisionRecord[] = data.map((row) => ({
-    id: row.id,
-    createdAt: row.created_at,
-    chosen: row.scores?.chosen || {
-      brain: "A",
-      lineage: "A1",
-      scoreTotal: 0,
-      diversity: 0,
-      coverageVal: 0,
-      clusterVal: 0,
-      value: 0,
-    },
-    rejected: row.scores?.rejected || {
-      brain: "B",
-      lineage: "B1",
-      scoreTotal: 0,
-      diversity: 0,
-      coverageVal: 0,
-      clusterVal: 0,
-      value: 0,
-    },
-    context: {
-      batchName: row.batch || "unknown",
-      scenario: row.scenario || "conservative",
-      mutationRate: row.mutation_rate || 0,
-      balanceA: row.balance_a || 0.5,
-      balanceAAdjustment: 0,
-      slot: 0,
-    },
-    good: row.decision === "chosen",
-  }));
+    const decisions: ArbiterDecisionRecord[] = data.map((row) => ({
+      id: row.id,
+      createdAt: row.created_at,
+      chosen: row.scores?.chosen || {
+        brain: row.chosen_brain || "A",
+        lineage: row.lineage_a || "A1",
+        scoreTotal: row.score_chosen || 0,
+        diversity: row.diversity_marginal || 0,
+        coverageVal: row.coverage || 0,
+        clusterVal: row.cluster || 0,
+        value: row.score_chosen || 0,
+      },
+      rejected: row.scores?.rejected || {
+        brain: row.rejected_brain || "B",
+        lineage: row.lineage_b || "B1",
+        scoreTotal: row.score_rejected || 0,
+        diversity: 0,
+        coverageVal: 0,
+        clusterVal: 0,
+        value: row.score_rejected || 0,
+      },
+      context: {
+        batchName: row.batch || "Alpha",
+        scenario: row.scenario || "conservative",
+        mutationRate: row.mutation_rate || 0,
+        balanceA: row.balance_a || 0.5,
+        balanceAAdjustment: 0,
+        slot: 0,
+      },
+      good: row.decision === "chosen",
+    }));
 
-  // Rebuild stats from decisions
-  const stats = { ...DEFAULT_STATE.stats };
-  const errors: Record<string, number> = {};
+    // Rebuild stats from decisions
+    const stats = { ...DEFAULT_STATE.stats };
+    const errors: Record<string, number> = {};
 
-  for (const decision of decisions) {
-    const scenario = decision.context.scenario;
-    const chosenBrain = decision.chosen.brain;
-    const rejectedBrain = decision.rejected.brain;
-    const brainStats = stats[scenario][chosenBrain];
-    brainStats.total += 1;
-    if (decision.good) brainStats.wins += 1;
-    else brainStats.losses += 1;
-    brainStats.scoreDelta += decision.chosen.value - decision.rejected.value;
+    for (const decision of decisions) {
+      const scenario = decision.context.scenario;
+      const chosenBrain = decision.chosen.brain;
+      const rejectedBrain = decision.rejected.brain;
+      const brainStats = stats[scenario][chosenBrain];
+      brainStats.total += 1;
+      if (decision.good) brainStats.wins += 1;
+      else brainStats.losses += 1;
+      brainStats.scoreDelta += decision.chosen.value - decision.rejected.value;
 
-    if (!decision.good) {
-      const errorKey = buildErrorKey(scenario, chosenBrain, rejectedBrain);
-      errors[errorKey] = (errors[errorKey] ?? 0) + 1;
+      if (!decision.good) {
+        const errorKey = buildErrorKey(scenario, chosenBrain, rejectedBrain);
+        errors[errorKey] = (errors[errorKey] ?? 0) + 1;
+      }
     }
-  }
 
-  return {
-    decisions,
-    stats,
-    errors,
-    updatedAt: new Date().toISOString(),
-  };
+    console.log(
+      `[ARBITER] loaded ${decisions.length} decisions from Supabase (real persistence)`,
+    );
+
+    return {
+      decisions,
+      stats,
+      errors,
+      updatedAt: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.warn("[ARBITER] failed to load from Supabase:", error);
+    return null;
+  }
 }
 
 function saveState(state: ArbiterMemoryState): void {
@@ -220,26 +229,14 @@ function saveState(state: ArbiterMemoryState): void {
   }
 }
 
-function persistDecisionToDB(record: ArbiterDecisionRecord): void {
-  supabase
-    .from("arbiter_decisions")
-    .insert({
-      decision: record.good ? "chosen" : "rejected",
-      chosen_brain: record.chosen.brain,
-      rejected_brain: record.rejected.brain,
-      scores: {
-        chosen: record.chosen,
-        rejected: record.rejected,
-      },
-      scenario: record.context.scenario,
-      batch: record.context.batchName,
-      mutation_rate: record.context.mutationRate,
-      balance_a: record.context.balanceA,
-    })
-    .then(({ error }) => {
-      if (error)
-        console.warn("Failed to persist arbiter decision to database", error);
-    });
+async function persistDecisionToDB(
+  record: ArbiterDecisionRecord,
+): Promise<void> {
+  try {
+    await persistArbiterDecision(record);
+  } catch (error) {
+    console.warn("[ARBITER] failed to persist decision to Supabase:", error);
+  }
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -343,8 +340,13 @@ export const arbiterMemory = {
       );
     }
 
-    // Persist to database
-    persistDecisionToDB(fullRecord);
+    // Persist to database (async, non-blocking)
+    persistDecisionToDB(fullRecord).catch((err) => {
+      console.warn(
+        "[ARBITER] decision registered locally, but DB persist failed:",
+        err,
+      );
+    });
 
     saveState(state);
     return id;
@@ -364,15 +366,13 @@ export const arbiterMemory = {
     else stats.losses += 1;
     decision.good = actualGood;
 
-    // Update in database
-    supabase
-      .from("arbiter_decisions")
-      .update({ decision: actualGood ? "chosen" : "rejected" })
-      .eq("id", id)
-      .then(({ error }) => {
-        if (error)
-          console.warn("Failed to update arbiter decision in database", error);
-      });
+    // Update in database (async, non-blocking)
+    updateArbiterDecisionOutcome(id, actualGood).catch((err) => {
+      console.warn(
+        "[ARBITER] decision updated locally, but DB update failed:",
+        err,
+      );
+    });
 
     saveState(state);
   },

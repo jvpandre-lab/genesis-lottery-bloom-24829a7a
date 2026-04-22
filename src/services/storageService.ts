@@ -59,13 +59,11 @@ export async function upsertDraws(draws: DrawRecord[]): Promise<number> {
     draw_date: d.drawDate ?? null,
     numbers: (d.numbers as any[]).map((n) => Number(n)),
   }));
-  const { error, count } = await supabase
-    .from("lotomania_draws")
-    .upsert(rows, {
-      onConflict: "contest_number",
-      count: "exact",
-      ignoreDuplicates: true,
-    });
+  const { error, count } = await supabase.from("lotomania_draws").upsert(rows, {
+    onConflict: "contest_number",
+    count: "exact",
+    ignoreDuplicates: true,
+  });
   if (error) throw error;
   return count ?? rows.length;
 }
@@ -339,3 +337,128 @@ export async function fetchRecentPressureSignals(limit = 100) {
 
 // Alias para compatibilidade
 export const getContestHistory = fetchAllDraws;
+
+// ============= Persistência do Arbiter (decisões, aprendizado) =============
+
+export async function persistArbiterDecision(decision: {
+  id: string;
+  createdAt: string;
+  chosen: {
+    brain: "A" | "B";
+    lineage: string;
+    scoreTotal: number;
+    diversity: number;
+    coverageVal: number;
+    clusterVal: number;
+    value: number;
+  };
+  rejected: {
+    brain: "A" | "B";
+    lineage: string;
+    scoreTotal: number;
+    diversity: number;
+    coverageVal: number;
+    clusterVal: number;
+    value: number;
+  };
+  context: {
+    batchName: string;
+    scenario: string;
+    mutationRate: number;
+    balanceA: number;
+    balanceAAdjustment: number;
+    slot: number;
+  };
+  good: boolean;
+}): Promise<void> {
+  const { error } = await supabase.from("arbiter_decisions").insert({
+    id: decision.id,
+    created_at: decision.createdAt,
+    decision: decision.good ? "chosen" : "rejected",
+    chosen_brain: decision.chosen.brain,
+    rejected_brain: decision.rejected.brain,
+    scores: {
+      chosen: decision.chosen,
+      rejected: decision.rejected,
+    },
+    scenario: decision.context.scenario,
+    batch: decision.context.batchName,
+    mutation_rate: decision.context.mutationRate,
+    balance_a: decision.context.balanceA,
+    lineage_a: decision.chosen.lineage,
+    lineage_b: decision.rejected.lineage,
+    diversity_marginal: decision.chosen.diversity,
+    coverage: decision.chosen.coverageVal,
+    cluster: decision.chosen.clusterVal,
+    score_chosen: decision.chosen.scoreTotal,
+    score_rejected: decision.rejected.scoreTotal,
+  });
+  if (error) {
+    if (error.code === "PGRST205") {
+      console.warn(
+        "[STORAGE] arbiter_decisions table not found; falling back to localStorage",
+      );
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function fetchArbiterDecisions(limit = 400): Promise<
+  Array<{
+    id: string;
+    created_at: string;
+    decision: "chosen" | "rejected";
+    chosen_brain: "A" | "B";
+    rejected_brain: "A" | "B";
+    scores: any;
+    scenario: string;
+    batch: string;
+    mutation_rate: number;
+    balance_a: number;
+    lineage_a: string;
+    lineage_b: string;
+    diversity_marginal: number;
+    coverage: number;
+    cluster: number;
+    score_chosen: number;
+    score_rejected: number;
+  }>
+> {
+  const { data, error } = await supabase
+    .from("arbiter_decisions")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      console.warn(
+        "[STORAGE] arbiter_decisions table not found; fetchArbiterDecisions returning empty history",
+      );
+      return [];
+    }
+    throw error;
+  }
+  return data ?? [];
+}
+
+export async function updateArbiterDecisionOutcome(
+  id: string,
+  good: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("arbiter_decisions")
+    .update({ decision: good ? "chosen" : "rejected" })
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "PGRST205") {
+      console.warn(
+        "[STORAGE] arbiter_decisions table not found; updateArbiterDecisionOutcome skipped",
+      );
+      return;
+    }
+    throw error;
+  }
+}
