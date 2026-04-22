@@ -360,12 +360,26 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
   const overallObjectiveScore = Object.values(batchObjectiveScores).reduce((s, v) => s + v, 0) /
     Math.max(1, Object.values(batchObjectiveScores).filter(v => v > 0).length);
 
+  const diagnostics: GenerationDiagnostics = {
+    contradictionsRejected,
+    arbiterReasoning,
+    arbiterMetrics: arbiterMetricsList,
+    adjustments,
+    preGenContext: preGenCtx,
+    batchObjectiveScores,
+    overallObjectiveScore,
+    ecoBrainBalance: { picksA: totalPicksA, picksB: totalPicksB },
+    tacticalComposition,
+    brainTensionHealth: null,
+  };
+
   const result: GenerationResult = {
     label: input.label ?? `Geração ${new Date().toLocaleTimeString("pt-BR")}`,
     scenario: finalScenario,
     requestedCount: totalCount,
     batches,
     metrics: { avgScore, avgDiversity, avgCoverage, territoryEntropy },
+    diagnostics,
     createdAt: new Date().toISOString(),
   };
 
@@ -376,22 +390,12 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
   // P8: Record brain tension for future adjustments
   if (!disableEngines.brainTension) {
     const divergence = result.metrics.avgDiversity; // placeholder for actual divergence
-    const arbitrationDifficulty = arbiterMetricsList.reduce((s, m) => s + (m.captureRisk === 'high' ? 1 : 0), 0) / arbiterMetricsList.length;
+    const arbitrationDifficulty = arbiterMetricsList.length > 0
+      ? arbiterMetricsList.reduce((s, m) => s + (m.captureRisk === 'high' ? 1 : 0), 0) / arbiterMetricsList.length
+      : 0;
     brainTensionEngine.recordGeneration(result, divergence, arbitrationDifficulty);
+    diagnostics.brainTensionHealth = brainTensionEngine.getHealthReport();
   }
-
-  const diagnostics: GenerationDiagnostics = {
-    contradictionsRejected,
-    arbiterReasoning,
-    arbiterMetrics,
-    adjustments,
-    preGenContext: preGenCtx,
-    batchObjectiveScores,
-    overallObjectiveScore,
-    ecoBrainBalance: { picksA: totalPicksA, picksB: totalPicksB },
-    tacticalComposition: tacticalComposition,
-    brainTensionHealth: disableEngines.brainTension ? null : brainTensionEngine.getHealthReport(),
-  };
 
   return { ...result, diagnostics };
 }
