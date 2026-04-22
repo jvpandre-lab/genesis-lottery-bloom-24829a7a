@@ -285,7 +285,7 @@ const Index = () => {
                 <BacktestPanel currentGeneration={result} />
                 <EvolutionaryBacktestPanel scenario={scenario} />
                 {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
-                <TacticalLotePanel />
+                <TacticalLotePanel batches={result.batches} />
                 <BrainTensionDiagnostics />
                 <EvolutionTimeline />
                 <div className="glass rounded-xl p-5 space-y-3">
