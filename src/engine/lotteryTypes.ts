@@ -95,6 +95,12 @@ export interface Batch {
   diversity: number; // 0..1 média intra-lote
 }
 
+export interface ArbiterMemorySummary {
+  decisionCount: number;
+  successRates: Record<Scenario, { A: number; B: number }>;
+  updatedAt: string;
+}
+
 export interface GenerationResult {
   id?: string;
   label: string;
@@ -118,6 +124,7 @@ export interface GenerationResult {
     ecoBrainBalance: { picksA: number; picksB: number };
     tacticalComposition: Record<string, number>;
     brainTensionHealth: any;
+    arbiterMemorySummary: ArbiterMemorySummary;
   };
   createdAt: string;
 }

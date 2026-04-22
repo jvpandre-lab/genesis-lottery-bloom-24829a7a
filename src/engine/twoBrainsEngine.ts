@@ -8,6 +8,7 @@ import { evolve } from "./evolutionaryEngine";
 import { scoreGame, ScoreContext } from "./scoreEngine";
 import { computeMetrics, coverageScore, clusterPenalty } from "./coverageEngine";
 import { diff, diversityVsSet, isRedundant } from "./diversityEngine";
+import { arbiterMemory, ArbiterDecisionRecord } from "./arbiterMemory";
 import { RNG, defaultRNG } from "./rng";
 
 const BRAIN_A_LINEAGES: LineageId[] = ["conservative", "coverage", "hybrid"];
@@ -91,6 +92,8 @@ export function arbitrateBatch(
   targetBalanceA: number,
   ctxBase: Omit<ScoreContext, "lineage">,
   scenario: Scenario,
+  mutationRate: number,
+  batchName: BatchName,
 ): { selected: BrainProposal[]; reasoning: string[]; metrics: ArbiterMetrics } {
   // P2 FIX: filtro pré-árbitro — remove candidatos degenerados por coverage
   const filtered = candidates.filter(c => c.coverageVal >= 0.30);
@@ -136,12 +139,15 @@ export function arbitrateBatch(
       // Se B está no hard cap, Brain B recebe penalidade pesada
       if (bCapped && c.brain === "B") balanceBonus = -0.40;
 
-      // Fórmula v2: 5 dimensões
+      const memoryBias = arbiterMemory.getBrainBias(c.brain, scenario, targetBalanceA, marginalDiv, c.coverageVal);
+
+      // Fórmula v2: 5 dimensões + memória adaptativa
       const value = c.scoreTotal * 0.40
         + marginalDiv * 0.25
         + c.coverageVal * 0.15
         + c.clusterVal * 0.10
-        + balanceBonus;  // ±0.25 agora tem peso real (representa até 25% do value)
+        + balanceBonus
+        + memoryBias;  // memória do árbitro ajusta preferência A/B
 
       return { c, value, marginalDiv };
     }).sort((a, b) => b.value - a.value);
@@ -161,13 +167,47 @@ export function arbitrateBatch(
     accepted.push(chosen.c);
     const margin = ranked.length > 1 ? ranked[0].value - ranked[1].value : 0;
     margins.push(margin);
+
+    const rejected = ranked.find((r) => r.c !== chosen.c) ?? ranked[0];
+    const decisionRecord: Omit<ArbiterDecisionRecord, "id" | "createdAt"> = {
+      chosen: {
+        brain: chosen.c.brain,
+        lineage: chosen.c.lineage,
+        scoreTotal: chosen.c.scoreTotal,
+        diversity: chosen.marginalDiv,
+        coverageVal: chosen.c.coverageVal,
+        clusterVal: chosen.c.clusterVal,
+        value: chosen.value,
+      },
+      rejected: {
+        brain: rejected.c.brain,
+        lineage: rejected.c.lineage,
+        scoreTotal: rejected.c.scoreTotal,
+        diversity: rejected.marginalDiv,
+        coverageVal: rejected.c.coverageVal,
+        clusterVal: rejected.c.clusterVal,
+        value: rejected.value,
+      },
+      context: {
+        batchName,
+        scenario,
+        mutationRate,
+        balanceA: targetBalanceA,
+        balanceAAdjustment: 0,
+        slot: accepted.length,
+      },
+      good: chosen.value >= rejected.value,
+    };
+    arbiterMemory.registerDecision(decisionRecord);
+
     reasoning.push(
       `Slot ${accepted.length}: ${chosen.c.brain}/${chosen.c.lineage} ` +
       `score=${chosen.c.scoreTotal.toFixed(3)} ` +
       `divΔ=${chosen.marginalDiv.toFixed(3)} ` +
       `cov=${chosen.c.coverageVal.toFixed(3)} ` +
       `cl=${chosen.c.clusterVal.toFixed(3)} ` +
-      `margin=${margin.toFixed(3)}`
+      `margin=${margin.toFixed(3)} ` +
+      `memBias=${arbiterMemory.getBrainBias(chosen.c.brain, scenario, targetBalanceA, chosen.marginalDiv, chosen.c.coverageVal).toFixed(3)}`
     );
     remaining.splice(remaining.indexOf(chosen.c), 1);
   }

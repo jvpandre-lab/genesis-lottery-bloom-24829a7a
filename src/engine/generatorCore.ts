@@ -6,6 +6,7 @@ import { scoreGame, ScoreContext } from "./scoreEngine";
 import { evolve } from "./evolutionaryEngine";
 import { defaultRNG, RNG } from "./rng";
 import { proposeFromBrain, arbitrateBatch, proposalToGame, ArbiterMetrics } from "./twoBrainsEngine";
+import { arbiterMemory } from "./arbiterMemory";
 import { globalPressure, AdaptiveAdjustments } from "./adaptivePressureEngine";
 import { buildPreGenContext, PreGenContext } from "./preGenEcosystem";
 import { tacticalRoleEngine, TacticalRole } from "./tacticalRoleEngine";
@@ -207,7 +208,8 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
     const meta = BATCHES[batchName];
     const games: Game[] = [];
     const effectiveUsage = getEffectiveUsage();
-    const balanceA = targetBalanceA(batchName, finalScenario, preGenBalAdj);
+    const rawBalanceA = targetBalanceA(batchName, finalScenario, preGenBalAdj);
+    const balanceA = arbiterMemory.adjustBalanceA(rawBalanceA, finalScenario, totalPicksA, totalPicksB);
 
     if (useTwoBrains) {
       const k = Math.max(2, Math.ceil(n * 1.6)); // mais candidatos para árbitro escolher
@@ -255,6 +257,8 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
         balanceA,
         ctxBase,
         finalScenario,
+        baseRate,
+        batchName,
       );
 
       arbiterReasoning.push(`Lote ${batchName}: ${reasoning.join(" | ")}`);
