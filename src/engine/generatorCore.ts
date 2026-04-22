@@ -195,6 +195,9 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
   const arbiterMetricsList: ArbiterMetrics[] = [];
   const batchObjectiveScores: Record<BatchName, number> = { Alpha: 0, Sigma: 0, Delta: 0, Omega: 0 };
   let totalPicksA = 0, totalPicksB = 0;
+  const tacticalComposition: Record<TacticalRole, number> = {
+    Anchor: 0, Explorer: 0, Breaker: 0, Shield: 0, Spreader: 0, AntiCrowd: 0,
+  };
 
   const baseRate = adjustedMutationRate(finalScenario, adjustments, preGenMutMod);
 
@@ -204,6 +207,7 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
     const meta = BATCHES[batchName];
     const games: Game[] = [];
     const effectiveUsage = getEffectiveUsage();
+    const balanceA = targetBalanceA(batchName, finalScenario, preGenBalAdj);
 
     if (useTwoBrains) {
       const k = Math.max(2, Math.ceil(n * 1.6)); // mais candidatos para árbitro escolher
@@ -233,11 +237,13 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
         if (disableEngines.tacticalRole) return props;
         const needs = preGenCtx?.tacticalNeeds?.[batchName] ?? [];
         if (needs.length === 0) return props;
-        return props.filter(p => {
+        const filtered = props.filter(p => {
           const game = proposalToGame(p, { ...ctxBase, reference: [] });
           const role = tacticalRoleEngine.determineRole(game, territory);
           return needs.includes(role);
         });
+        // Fallback: se filtro matou todos, retorna candidatos originais
+        return filtered.length > 0 ? filtered : props;
       };
 
       const tacticalA = filterByTacticalNeeds(adjustedA, batchName);
@@ -332,11 +338,13 @@ export async function generate(input: GenerateInput): Promise<GenerationResult &
       : computeBatchObjective(games, bPicksA, bPicksB, finalScenario, batchName);
     batchObjectiveScores[batchName] = objScore;
 
-    // P7: Tactical composition
-    const tacticalComposition = games.reduce((acc, g) => {
-      acc[g.tacticalRole] = (acc[g.tacticalRole] || 0) + 1;
-      return acc;
-    }, {} as Record<TacticalRole, number>);
+    // P7: Tactical composition — atribuir papéis sem mutar o tipo Game
+    if (!disableEngines.tacticalRole) {
+      for (const g of games) {
+        const role = tacticalRoleEngine.determineRole(g, territory);
+        tacticalComposition[role] = (tacticalComposition[role] || 0) + 1;
+      }
+    }
 
     const avgScore = games.reduce((s, g) => s + g.score.total, 0) / games.length;
     const diversity = batchDiversity(games);
