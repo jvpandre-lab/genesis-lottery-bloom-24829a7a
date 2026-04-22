@@ -1,83 +1,83 @@
 {
   "A": {
-    "hits15": 5,
+    "hits15": 2,
     "hits16": 0,
     "hits17": 0,
     "hits18": 0,
     "hits19": 0,
     "hits20": 0,
     "zeroHits": 0,
-    "poorGames": 128,
-    "totalHits": 3001,
+    "poorGames": 115,
+    "totalHits": 3024,
     "totalGames": 300,
     "lineagePerformances": {
       "conservative": {
-        "totalHits": 477,
+        "totalHits": 502,
         "count": 50
       },
       "coverage": {
-        "totalHits": 46,
+        "totalHits": 37,
         "count": 4
       },
       "dispersive": {
-        "totalHits": 991,
+        "totalHits": 1003,
         "count": 98
       },
       "anticrowd": {
-        "totalHits": 485,
+        "totalHits": 499,
         "count": 50
       },
       "chaotic": {
-        "totalHits": 1002,
+        "totalHits": 983,
         "count": 98
       }
     },
     "scenarioPerformances": {
       "hybrid": {
-        "totalHits": 3001,
+        "totalHits": 3024,
         "count": 300
       }
     }
   },
   "B": {
-    "hits15": 6,
+    "hits15": 1,
     "hits16": 0,
     "hits17": 0,
     "hits18": 0,
     "hits19": 0,
     "hits20": 0,
     "zeroHits": 0,
-    "poorGames": 107,
-    "totalHits": 3043,
+    "poorGames": 113,
+    "totalHits": 2964,
     "totalGames": 300,
     "lineagePerformances": {
-      "conservative": {
-        "totalHits": 1325,
-        "count": 132
-      },
-      "dispersive": {
-        "totalHits": 835,
-        "count": 82
-      },
-      "anticrowd": {
-        "totalHits": 698,
-        "count": 68
+      "coverage": {
+        "totalHits": 244,
+        "count": 26
       },
       "hybrid": {
-        "totalHits": 113,
-        "count": 11
+        "totalHits": 197,
+        "count": 21
       },
-      "coverage": {
-        "totalHits": 72,
-        "count": 7
+      "conservative": {
+        "totalHits": 2523,
+        "count": 253
       }
     },
     "scenarioPerformances": {
       "hybrid": {
-        "totalHits": 3043,
-        "count": 300
+        "totalHits": 71,
+        "count": 6
+      },
+      "exploratory": {
+        "totalHits": 63,
+        "count": 6
+      },
+      "conservative": {
+        "totalHits": 2830,
+        "count": 288
       }
     }
   },
-  "reportStr": "=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (197.8s) ===\n[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.003\n -> 15 Acertos: 5\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 128 (lixo)\n\n[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 10.143\n -> 15 Acertos: 6\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 107 (lixo)\n"
+  "reportStr": "=== RESULTADOS: ÚLTIMOS 50 CONCURSOS (910.2s) ===\n[MODO A (Antigão v1)]  - Jogos: 300 | Média Acertos: 10.080\n -> 15 Acertos: 2\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 115 (lixo)\n\n[MODO B (Motores v2)]  - Jogos: 300 | Média Acertos: 9.880\n -> 15 Acertos: 1\n -> 16 Acertos: 0\n -> 17 Acertos: 0\n -> 18 Acertos: 0\n -> 19 Acertos: 0\n -> 20 Acertos: 0\n -> 0 Acertos : 0\n -> Jogos < 10: 113 (lixo)\n"
 }
