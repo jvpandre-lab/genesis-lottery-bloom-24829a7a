@@ -1,27 +1,35 @@
-import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Sparkles, Activity, Layers, Cpu, Shuffle, Target } from "lucide-react";
-import { generate, GenerationDiagnostics } from "@/engine/generatorCore";
-import { GenerationResult, Scenario } from "@/engine/lotteryTypes";
-import { fetchRecentDraws, persistGeneration } from "@/services/storageService";
-import { BatchSection } from "@/components/BatchSection";
-import { TerritoryHeatmap } from "@/components/TerritoryHeatmap";
-import { HistoryUploader } from "@/components/HistoryUploader";
 import { BacktestPanel } from "@/components/BacktestPanel";
-import { EvolutionaryBacktestPanel } from "@/components/EvolutionaryBacktestPanel";
-import { RecommendationsPanel } from "@/components/RecommendationsPanel";
+import { BatchSection } from "@/components/BatchSection";
+import { BrainTensionDiagnostics } from "@/components/BrainTensionDiagnostics";
 import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { EcosystemDashboard } from "@/components/EcosystemDashboard";
-import { TacticalLotePanel } from "@/components/TacticalLotePanel";
-import { BrainTensionDiagnostics } from "@/components/BrainTensionDiagnostics";
+import { EvolutionaryBacktestPanel } from "@/components/EvolutionaryBacktestPanel";
 import { EvolutionTimeline } from "@/components/EvolutionTimeline";
-import { recommend } from "@/engine/recommendationEngine";
+import { HistoryUploader } from "@/components/HistoryUploader";
+import { RecommendationsPanel } from "@/components/RecommendationsPanel";
+import { TacticalLotePanel } from "@/components/TacticalLotePanel";
+import { TerritoryHeatmap } from "@/components/TerritoryHeatmap";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { globalPressure } from "@/engine/adaptivePressureEngine";
 import { integrateEcosystemFlow } from "@/engine/ecoIntegration";
+import { generate, GenerationDiagnostics } from "@/engine/generatorCore";
+import { GenerationResult, Scenario } from "@/engine/lotteryTypes";
+import { recommend } from "@/engine/recommendationEngine";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { fetchRecentDraws, persistGeneration } from "@/services/storageService";
+import {
+  Activity,
+  Cpu,
+  Layers,
+  Loader2,
+  Shuffle,
+  Sparkles,
+  Target,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 
 const COUNTS = [1, 3, 5, 10, 15] as const;
 
@@ -44,14 +52,26 @@ const Index = () => {
     setBusy(true);
     try {
       let recent: any[] = [];
-      try { recent = await fetchRecentDraws(8); } catch {}
+      try {
+        recent = await fetchRecentDraws(8);
+      } catch {}
       await new Promise((r) => setTimeout(r, 30));
-      const res = await generate({ count, scenario, recentDraws: recent, twoBrains: true });
+      const res = await generate({
+        count,
+        scenario,
+        recentDraws: recent,
+        twoBrains: true,
+      });
       const { diagnostics, ...gen } = res;
       setResult(gen as GenerationResult);
       setDiag(diagnostics);
-      try { await persistGeneration(gen as GenerationResult); } catch (e: any) {
-        toast({ title: "Geração concluída (não persistida)", description: e?.message ?? "" });
+      try {
+        await persistGeneration(gen as GenerationResult);
+      } catch (e: any) {
+        toast({
+          title: "Geração concluída (não persistida)",
+          description: e?.message ?? "",
+        });
       }
       // Integrate ecosystem analysis
       try {
@@ -60,13 +80,26 @@ const Index = () => {
         const first = Array.isArray(am) ? am[0] : am;
         const divergence = first?.divergence ?? 0.5;
         const arbitrationDifficulty = first?.difficulty ?? 0.3;
-        await integrateEcosystemFlow(gen as GenerationResult, recent, generationId, divergence, arbitrationDifficulty);
-        toast({ title: "Ecossistema atualizado", description: "Análise territorial, tática e cerebral integrada." });
+        await integrateEcosystemFlow(
+          gen as GenerationResult,
+          recent,
+          generationId,
+          divergence,
+          arbitrationDifficulty,
+        );
+        toast({
+          title: "Ecossistema atualizado",
+          description: "Análise territorial, tática e cerebral integrada.",
+        });
       } catch (e: any) {
         console.warn("Ecosystem integration failed:", e);
       }
     } catch (e: any) {
-      toast({ title: "Falha ao gerar", description: e?.message ?? "Erro desconhecido", variant: "destructive" });
+      toast({
+        title: "Falha ao gerar",
+        description: e?.message ?? "Erro desconhecido",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -88,14 +121,25 @@ const Index = () => {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-tight">Lotomania IA da Sorte</div>
-              <div className="text-[10px] text-muted-foreground -mt-0.5 uppercase tracking-widest">Sistema Evolutivo</div>
+              <div className="text-sm font-semibold tracking-tight">
+                Lotomania IA da Sorte
+              </div>
+              <div className="text-[10px] text-muted-foreground -mt-0.5 uppercase tracking-widest">
+                Sistema Evolutivo
+              </div>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Badge variant="outline" className="font-mono num-mono"><Cpu className="h-3 w-3 mr-1.5" />6 linhagens</Badge>
-            <Badge variant="outline" className="font-mono num-mono"><Layers className="h-3 w-3 mr-1.5" />4 lotes</Badge>
-            <Badge variant="outline" className="font-mono num-mono"><Activity className="h-3 w-3 mr-1.5" />GA + território</Badge>
+            <Badge variant="outline" className="font-mono num-mono">
+              <Cpu className="h-3 w-3 mr-1.5" />6 linhagens
+            </Badge>
+            <Badge variant="outline" className="font-mono num-mono">
+              <Layers className="h-3 w-3 mr-1.5" />4 lotes
+            </Badge>
+            <Badge variant="outline" className="font-mono num-mono">
+              <Activity className="h-3 w-3 mr-1.5" />
+              GA + território
+            </Badge>
           </div>
         </div>
       </header>
@@ -105,13 +149,18 @@ const Index = () => {
         <section className="relative overflow-hidden rounded-2xl glass-strong p-8 md:p-12">
           <div className="absolute inset-0 bg-gradient-glow pointer-events-none" />
           <div className="relative z-10 max-w-3xl">
-            <Badge className="bg-gradient-accent text-accent-foreground border-0 mb-4">v1 · Núcleo profundo</Badge>
+            <Badge className="bg-gradient-accent text-accent-foreground border-0 mb-4">
+              v1 · Núcleo profundo
+            </Badge>
             <h1 className="text-3xl md:text-5xl font-semibold tracking-tight leading-tight">
-              Construção estratégica <span className="text-gradient">evolutiva</span> para Lotomania
+              Construção estratégica{" "}
+              <span className="text-gradient">evolutiva</span> para Lotomania
             </h1>
             <p className="mt-4 text-muted-foreground max-w-2xl">
-              Linhagens com identidade própria, mapa territorial vivo, motor genético com pressão adaptativa e
-              motor de contradição que rejeita jogos confortáveis demais. Cada geração é uma exploração real do espaço 00–99.
+              Linhagens com identidade própria, mapa territorial vivo, motor
+              genético com pressão adaptativa e motor de contradição que rejeita
+              jogos confortáveis demais. Cada geração é uma exploração real do
+              espaço 00–99.
             </p>
           </div>
         </section>
@@ -123,7 +172,9 @@ const Index = () => {
         <section className="glass-strong rounded-2xl p-6 space-y-5">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
             <div className="space-y-3">
-              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Quantidade de jogos</div>
+              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                Quantidade de jogos
+              </div>
               <div className="flex flex-wrap gap-2">
                 {COUNTS.map((n) => (
                   <button
@@ -133,7 +184,7 @@ const Index = () => {
                       "h-12 min-w-[64px] px-4 rounded-xl font-mono num-mono text-base border transition-all",
                       count === n
                         ? "bg-gradient-primary text-primary-foreground border-transparent shadow-glow"
-                        : "bg-surface-2/60 border-border/60 text-foreground/80 hover:border-primary/50"
+                        : "bg-surface-2/60 border-border/60 text-foreground/80 hover:border-primary/50",
                     )}
                   >
                     {n}
@@ -142,23 +193,36 @@ const Index = () => {
               </div>
             </div>
             <div className="space-y-3 md:max-w-md w-full">
-              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">Cenário operacional</div>
-              <Tabs value={scenario} onValueChange={(v) => setScenario(v as Scenario)}>
+              <div className="text-[11px] uppercase tracking-widest text-muted-foreground">
+                Cenário operacional
+              </div>
+              <Tabs
+                value={scenario}
+                onValueChange={(v) => setScenario(v as Scenario)}
+              >
                 <TabsList className="grid grid-cols-4 bg-surface-2/60 border border-border/60">
                   {SCENARIOS.map((s) => (
-                    <TabsTrigger key={s.id} value={s.id} className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground text-xs">
+                    <TabsTrigger
+                      key={s.id}
+                      value={s.id}
+                      className="data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground text-xs"
+                    >
                       {s.label}
                     </TabsTrigger>
                   ))}
                 </TabsList>
               </Tabs>
-              <p className="text-[11px] text-muted-foreground">{SCENARIOS.find((s) => s.id === scenario)?.hint}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {SCENARIOS.find((s) => s.id === scenario)?.hint}
+              </p>
             </div>
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-border/40">
             <div className="text-[11px] text-muted-foreground flex items-center gap-2">
               <Shuffle className="h-3.5 w-3.5" />
-              {draws > 0 ? `${draws} concursos disponíveis para anti-viés.` : "Anti-viés operará apenas em modo interno."}
+              {draws > 0
+                ? `${draws} concursos disponíveis para anti-viés.`
+                : "Anti-viés operará apenas em modo interno."}
             </div>
             <Button
               onClick={handleGenerate}
@@ -166,7 +230,17 @@ const Index = () => {
               size="lg"
               className="bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-glow"
             >
-              {busy ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Evoluindo {count} jogo{count > 1 ? "s" : ""}…</> : <><Target className="h-4 w-4 mr-2" /> Gerar {count} jogo{count > 1 ? "s" : ""}</>}
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Evoluindo{" "}
+                  {count} jogo{count > 1 ? "s" : ""}…
+                </>
+              ) : (
+                <>
+                  <Target className="h-4 w-4 mr-2" /> Gerar {count} jogo
+                  {count > 1 ? "s" : ""}
+                </>
+              )}
             </Button>
           </div>
         </section>
@@ -175,28 +249,49 @@ const Index = () => {
         {result && (
           <section className="space-y-6 animate-fade-in">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Kpi label="Score médio" value={`${Math.round(result.metrics.avgScore * 100)}`} suffix="/100" tone="primary" />
-              <Kpi label="Diversidade" value={`${Math.round(result.metrics.avgDiversity * 100)}%`} tone="accent" />
-              <Kpi label="Cobertura" value={`${Math.round(result.metrics.avgCoverage * 100)}%`} />
-              <Kpi label="Entropia territorial" value={`${(result.metrics.territoryEntropy * 100).toFixed(1)}%`} />
+              <Kpi
+                label="Score médio"
+                value={`${Math.round(result.metrics.avgScore * 100)}`}
+                suffix="/100"
+                tone="primary"
+              />
+              <Kpi
+                label="Diversidade"
+                value={`${Math.round(result.metrics.avgDiversity * 100)}%`}
+                tone="accent"
+              />
+              <Kpi
+                label="Cobertura"
+                value={`${Math.round(result.metrics.avgCoverage * 100)}%`}
+              />
+              <Kpi
+                label="Entropia territorial"
+                value={`${(result.metrics.territoryEntropy * 100).toFixed(1)}%`}
+              />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <div className="xl:col-span-2 space-y-8">
-                {result.batches.map((b) => <BatchSection key={b.name} batch={b} />)}
+                {result.batches.map((b) => (
+                  <BatchSection key={b.name} batch={b} />
+                ))}
               </div>
               <aside className="space-y-6">
                 <TerritoryHeatmap result={result} />
                 {diag && <DiagnosticsPanel diag={diag} />}
-                {recommendations.length > 0 && <RecommendationsPanel items={recommendations} />}
+                {recommendations.length > 0 && (
+                  <RecommendationsPanel items={recommendations} />
+                )}
                 <BacktestPanel currentGeneration={result} />
                 <EvolutionaryBacktestPanel scenario={scenario} />
-                <EcosystemDashboard />
+                {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
                 <TacticalLotePanel />
                 <BrainTensionDiagnostics />
                 <EvolutionTimeline />
                 <div className="glass rounded-xl p-5 space-y-3">
-                  <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
+                  <h4 className="text-sm font-semibold tracking-tight">
+                    Composição das linhagens
+                  </h4>
                   <LineageBreakdown result={result} />
                 </div>
               </aside>
@@ -207,7 +302,11 @@ const Index = () => {
         {!result && !busy && (
           <section className="glass rounded-2xl p-10 text-center text-muted-foreground">
             <Sparkles className="h-6 w-6 mx-auto text-primary mb-3" />
-            <p className="text-sm">Configure o cenário e a quantidade, depois clique em <span className="text-foreground">Gerar</span> para iniciar a primeira evolução.</p>
+            <p className="text-sm">
+              Configure o cenário e a quantidade, depois clique em{" "}
+              <span className="text-foreground">Gerar</span> para iniciar a
+              primeira evolução.
+            </p>
           </section>
         )}
       </main>
@@ -215,19 +314,40 @@ const Index = () => {
       <footer className="border-t border-border/40 mt-16">
         <div className="container py-6 text-[11px] text-muted-foreground flex items-center justify-between">
           <span>Lotomania IA da Sorte</span>
-          <span className="font-mono num-mono">domínio 00–99 · 50 dezenas/jogo</span>
+          <span className="font-mono num-mono">
+            domínio 00–99 · 50 dezenas/jogo
+          </span>
         </div>
       </footer>
     </div>
   );
 };
 
-function Kpi({ label, value, suffix, tone }: { label: string; value: string; suffix?: string; tone?: "primary" | "accent" }) {
+function Kpi({
+  label,
+  value,
+  suffix,
+  tone,
+}: {
+  label: string;
+  value: string;
+  suffix?: string;
+  tone?: "primary" | "accent";
+}) {
   return (
     <div className="glass rounded-xl px-5 py-4">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
-      <div className={cn("mt-1 text-2xl font-mono num-mono font-semibold", tone === "primary" && "text-gradient", tone === "accent" && "text-accent")}>
-        {value}<span className="text-xs text-muted-foreground ml-1">{suffix}</span>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-1 text-2xl font-mono num-mono font-semibold",
+          tone === "primary" && "text-gradient",
+          tone === "accent" && "text-accent",
+        )}
+      >
+        {value}
+        <span className="text-xs text-muted-foreground ml-1">{suffix}</span>
       </div>
     </div>
   );
@@ -235,7 +355,8 @@ function Kpi({ label, value, suffix, tone }: { label: string; value: string; suf
 
 function LineageBreakdown({ result }: { result: GenerationResult }) {
   const counts: Record<string, number> = {};
-  for (const b of result.batches) for (const g of b.games) counts[g.lineage] = (counts[g.lineage] ?? 0) + 1;
+  for (const b of result.batches)
+    for (const g of b.games) counts[g.lineage] = (counts[g.lineage] ?? 0) + 1;
   const total = Object.values(counts).reduce((s, v) => s + v, 0);
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return (
@@ -243,11 +364,18 @@ function LineageBreakdown({ result }: { result: GenerationResult }) {
       {entries.map(([lin, n]) => (
         <div key={lin} className="space-y-1">
           <div className="flex items-center justify-between text-[11px]">
-            <span className={`text-lineage-${lin} font-medium capitalize`}>{lin}</span>
-            <span className="font-mono num-mono text-muted-foreground">{n}/{total}</span>
+            <span className={`text-lineage-${lin} font-medium capitalize`}>
+              {lin}
+            </span>
+            <span className="font-mono num-mono text-muted-foreground">
+              {n}/{total}
+            </span>
           </div>
           <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-            <div className={`h-full bg-lineage-${lin}`} style={{ width: `${(n / total) * 100}%` }} />
+            <div
+              className={`h-full bg-lineage-${lin}`}
+              style={{ width: `${(n / total) * 100}%` }}
+            />
           </div>
         </div>
       ))}

@@ -4,7 +4,7 @@
 
 import { globalPressure } from "./adaptivePressureEngine";
 import { brainTensionEngine } from "./brainTensionEngine";
-import { cycleMemoryEngine } from "./cycleMemoryEngine";
+import { CycleHealth, cycleMemoryEngine } from "./cycleMemoryEngine";
 import { lineageDriftEngine } from "./lineageDriftEngine";
 import {
   BatchName,
@@ -45,6 +45,8 @@ export interface PreGenContext {
   territoryDrift?: { direction: string; magnitude: number };
   /** Razões do contexto pré-gen (para diagnóstico). */
   reasons: string[];
+  /** Saúde do ciclo obtida do CycleMemoryEngine. */
+  cycleHealth: CycleHealth | null;
   /** True se o ecossistema tem dados suficientes para influenciar. */
   hasData: boolean;
 }
@@ -70,6 +72,7 @@ export function buildPreGenContext(
   let blindZonesCount = 0;
   let falseDiversityDetected = false;
   let territoryDrift: { direction: string; magnitude: number } | undefined;
+  let cycleHealth: CycleHealth | null = null;
 
   if (recentResults.length === 0) {
     return {
@@ -83,6 +86,7 @@ export function buildPreGenContext(
       blindZonesCount: 0,
       falseDiversityDetected: false,
       territoryDrift: undefined,
+      cycleHealth: null,
       reasons: ["Sem histórico de gerações — contexto neutro."],
       hasData: false,
     };
@@ -156,6 +160,7 @@ export function buildPreGenContext(
     for (const r of recentResults.slice(-5))
       cycleMemoryEngine.observeGeneration(r, scenario);
     const health = cycleMemoryEngine.getCycleHealth("last5");
+    cycleHealth = health;
 
     if (health.recoveryNeed) {
       mutationRateModifier += 0.08;
@@ -295,6 +300,7 @@ export function buildPreGenContext(
     blindZonesCount,
     falseDiversityDetected,
     territoryDrift,
+    cycleHealth,
     reasons,
     hasData: true,
   };
