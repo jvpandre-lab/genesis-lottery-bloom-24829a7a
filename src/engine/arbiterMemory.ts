@@ -74,11 +74,16 @@ function hasLocalStorage(): boolean {
   );
 }
 
-function loadState(): ArbiterMemoryState {
+async function loadState(): Promise<ArbiterMemoryState> {
   try {
     // Try to load from database first
-    const dbState = loadStateFromDB();
-    if (dbState) return dbState;
+    const dbState = await loadStateFromDB();
+    if (dbState) {
+      console.log(
+        `[ARBITER] loaded ${dbState.decisions.length} decisions from DB`,
+      );
+      return dbState;
+    }
   } catch (error) {
     console.warn(
       "Failed to load arbiter memory from database, falling back to localStorage",
@@ -87,12 +92,22 @@ function loadState(): ArbiterMemoryState {
   }
 
   // Fallback to localStorage
-  if (!hasLocalStorage()) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+  if (!hasLocalStorage()) {
+    console.log(
+      "[ARBITER] no localStorage available, using default memory state",
+    );
+    return JSON.parse(JSON.stringify(DEFAULT_STATE));
+  }
   try {
     const serialized = window.localStorage.getItem(STORAGE_KEY);
-    if (!serialized) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    if (!serialized) {
+      console.log(
+        "[ARBITER] no localStorage entry, using default memory state",
+      );
+      return JSON.parse(JSON.stringify(DEFAULT_STATE));
+    }
     const parsed = JSON.parse(serialized) as ArbiterMemoryState;
-    return {
+    const mergedState: ArbiterMemoryState = {
       ...DEFAULT_STATE,
       ...parsed,
       stats: {
@@ -116,7 +131,12 @@ function loadState(): ArbiterMemoryState {
       errors: parsed.errors ?? {},
       updatedAt: parsed.updatedAt ?? DEFAULT_STATE.updatedAt,
     };
-  } catch {
+    console.log(
+      `[ARBITER] loaded ${mergedState.decisions.length} decisions from localStorage`,
+    );
+    return mergedState;
+  } catch (e) {
+    console.warn("[ARBITER] failed to parse localStorage state", e);
     return JSON.parse(JSON.stringify(DEFAULT_STATE));
   }
 }
@@ -238,23 +258,26 @@ function buildErrorKey(
   return `${scenario}|chosen:${chosen}|rejected:${rejected}`;
 }
 
-let state: ArbiterMemoryState = loadState();
+let state: ArbiterMemoryState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+let stateLoaded = false;
 
 export const arbiterMemory = {
+  async init(): Promise<void> {
+    if (stateLoaded) return;
+    state = await loadState();
+    stateLoaded = true;
+    console.log(
+      `[ARBITER] init completed, ${state.decisions.length} decisions loaded`,
+    );
+  },
+
   getState(): ArbiterMemoryState {
     return state;
   },
 
   reset(): void {
-    state = loadState();
-    state.decisions = [];
-    state.stats = {
-      conservative: createScenarioStats(),
-      hybrid: createScenarioStats(),
-      aggressive: createScenarioStats(),
-      exploratory: createScenarioStats(),
-    };
-    state.errors = {};
+    stateLoaded = false;
+    state = JSON.parse(JSON.stringify(DEFAULT_STATE));
     saveState(state);
   },
 

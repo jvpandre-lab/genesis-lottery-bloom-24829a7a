@@ -217,6 +217,20 @@ export async function generate(
   const useTwoBrains = input.twoBrains !== false;
   const disableEngines = input.disableEngines ?? {};
 
+  await arbiterMemory.init();
+  const decisionsBefore = arbiterMemory.getState().decisions.length;
+  console.log(
+    `[GENERATOR] recentResults count=${recentResults.length} ids=${recentResults
+      .map((r) => r.id ?? "unknown")
+      .join(",")}`,
+  );
+  if (recentResults.length === 0) {
+    console.error(
+      "[GENERATOR] CRITICAL: recentResults is empty. PreGenContext will not receive historical generations.",
+    );
+  }
+  console.log(`[ARBITER] decisionsBefore=${decisionsBefore}`);
+
   // ── Pressão adaptativa ─────────────────────────────────────────────────
   globalPressure.load();
   const adjustments = disableEngines.adaptivePressure
@@ -249,6 +263,37 @@ export async function generate(
   const preGenBalAdj = preGenCtx?.targetBalanceAdjustment ?? 0;
   const preGenWeights = preGenCtx?.weightModifiers ?? new Array(100).fill(1);
   const lineagePenalties = preGenCtx?.lineagePenalties ?? {};
+
+  const beforeMutationRate = adjustedMutationRate(
+    effectiveScenario,
+    adjustments,
+    0,
+  );
+  const afterMutationRate = adjustedMutationRate(
+    finalScenario,
+    adjustments,
+    preGenMutMod,
+  );
+  const beforeBalanceA = BATCH_ORDER.map((batchName) => ({
+    batch: batchName,
+    value: targetBalanceA(batchName, effectiveScenario, 0),
+  }));
+  const afterBalanceA = BATCH_ORDER.map((batchName) => ({
+    batch: batchName,
+    value: targetBalanceA(batchName, finalScenario, preGenBalAdj),
+  }));
+  console.log("[PREGEN] before", {
+    originalScenario: scenario,
+    effectiveScenario,
+    beforeMutationRate,
+    beforeBalanceA,
+  });
+  console.log("[PREGEN] after", {
+    finalScenario,
+    afterMutationRate,
+    afterBalanceA,
+    preGenContext: preGenCtx,
+  });
 
   // ── Territory ──────────────────────────────────────────────────────────
   const territory = new TerritoryMap();
@@ -579,6 +624,20 @@ export async function generate(
     diagnostics,
     createdAt: new Date().toISOString(),
   };
+
+  const decisionsAfter = arbiterMemory.getState().decisions.length;
+  console.log(
+    `[ARBITER] decisionsAfter=${decisionsAfter} decisionsAdded=${decisionsAfter - decisionsBefore}`,
+  );
+  console.log("[GENERATOR] summary", {
+    finalScenario,
+    avgDiversity,
+    totalPicksA,
+    totalPicksB,
+    batchCount: batches.length,
+    preGenReasons: preGenCtx?.reasons,
+    tacticalNeeds: preGenCtx?.tacticalNeeds,
+  });
 
   if (!disableEngines.adaptivePressure) {
     globalPressure.observe(result);

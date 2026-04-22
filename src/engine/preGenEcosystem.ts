@@ -269,15 +269,44 @@ export function buildPreGenContext(
   // ── 6. TacticalNeeds → papéis táticos que faltam ───────────────────────
   // Calcular necessidades táticas baseadas no histórico e cenário
   try {
-    // Placeholder: por ora, necessidades padrão por batch
-    // Futuro: analisar histórico para determinar necessidades reais
+    const analysis = metaTerritoryEngine.analyze();
+    const hasHighPressure = analysis.pressureZones.zones.length > 8;
+    const hasManyBlind = analysis.blindZones.zones.length > 10;
+    const hasFalseDiversity = analysis.falseDiversitySignals.falsePositive;
+    const driftDirection = analysis.territoryDrift.direction;
+    const lowCycleHealth = cycleHealth ? cycleHealth.healthScore < 0.45 : false;
+    const fatigue = cycleHealth ? cycleHealth.fatigueLevel > 0.6 : false;
+
+    const buildBatchNeeds = (
+      primary: TacticalRole,
+      secondary: TacticalRole,
+    ): TacticalRole[] => [primary, secondary];
+
     tacticalNeeds = {
-      Alpha: ["Anchor", "Shield"],
-      Sigma: ["Explorer", "Breaker"],
-      Delta: ["Spreader", "AntiCrowd"],
-      Omega: ["Breaker", "Explorer"],
+      Alpha: buildBatchNeeds(
+        lowCycleHealth ? "Shield" : "Anchor",
+        hasHighPressure
+          ? "Shield"
+          : driftDirection === "exploring"
+            ? "Explorer"
+            : "Anchor",
+      ),
+      Sigma: buildBatchNeeds(
+        hasFalseDiversity ? "Explorer" : "Breaker",
+        driftDirection === "converging" ? "AntiCrowd" : "Shield",
+      ),
+      Delta: buildBatchNeeds(
+        hasManyBlind ? "Spreader" : "Breaker",
+        hasFalseDiversity || fatigue ? "AntiCrowd" : "Explorer",
+      ),
+      Omega: buildBatchNeeds(
+        driftDirection === "converging" ? "Breaker" : "AntiCrowd",
+        driftDirection === "exploring" ? "Explorer" : "Shield",
+      ),
     };
-    reasons.push("TacticalNeeds: necessidades padrão definidas por batch.");
+    reasons.push(
+      `TacticalNeeds: calculadas dinamicamente com base em pressão=${analysis.pressureZones.zones.length}, blind=${analysis.blindZones.zones.length}, drift=${driftDirection}, falseDiversity=${hasFalseDiversity}`,
+    );
   } catch (e) {
     reasons.push("TacticalNeeds: erro ao calcular necessidades.");
   }
