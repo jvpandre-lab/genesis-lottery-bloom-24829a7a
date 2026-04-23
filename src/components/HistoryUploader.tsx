@@ -1,29 +1,25 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import {
   getHistorySource,
   HistorySource,
-  parseDrawsFile,
   setHistorySource,
 } from "@/services/contestService";
 import {
   countDraws,
   fetchRecentDraws,
-  upsertDraws,
 } from "@/services/storageService";
 import { importHistoricalDraws } from "@/services/dataIngestService";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Database, FileWarning, Loader2, Upload } from "lucide-react";
-import React, { useEffect, useRef, useState } from "react";
+import { Database, FileWarning, Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
 export const HistoryUploader = React.forwardRef<
   HTMLDivElement,
   { onChanged?: (total: number) => void }
 >(({ onChanged }, _ref) => {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [count, setCount] = useState<number | null>(null);
   const [historySource, setHistorySourceState] =
     useState<HistorySource>("unknown");
@@ -120,50 +116,6 @@ export const HistoryUploader = React.forwardRef<
     await runImport(false);
   }
 
-  async function handleFile(file: File) {
-    setBusy(true);
-    try {
-      const text = await file.text();
-      const result = parseDrawsFile(text, file.name) as any;
-      const { draws, report } = result;
-
-      if (draws.length === 0) {
-        toast({
-          title: "Nenhum concurso reconhecido",
-          description: "Verifique o formato do arquivo.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const inserted = await upsertDraws(draws);
-      setHistorySource("manual");
-      setHistorySourceState("manual");
-
-      console.log(
-        `[HistoryUploader] Upload manual - Inseridos: ${inserted}, Lidos: ${report?.totalRead}, Válidos: ${report?.totalValid}, Descartados: ${report?.totalDiscarded}`,
-      );
-
-      const discardSummary = report?.discardReasons
-        ? Object.entries(report.discardReasons)
-            .map(([reason, count]) => `${reason}: ${count}`)
-            .join(", ")
-        : "";
-      toast({
-        title: "Histórico atualizado",
-        description: `${inserted} concursos importados. Lidos: ${report?.totalRead || 0}, Válidos: ${report?.totalValid || 0}, Descartados: ${report?.totalDiscarded || 0}${discardSummary ? ` (${discardSummary})` : ""}.`,
-      });
-      await refresh();
-    } catch (e: any) {
-      toast({
-        title: "Falha ao importar",
-        description: e?.message ?? "Erro desconhecido",
-        variant: "destructive",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="glass rounded-xl p-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -249,32 +201,6 @@ export const HistoryUploader = React.forwardRef<
             <Database className="h-4 w-4" />
           )}
           <span className="ml-2">Importar Histórico</span>
-        </Button>
-        <Input
-          ref={inputRef}
-          type="file"
-          accept=".csv,.json,.txt"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) handleFile(f);
-            e.target.value = "";
-          }}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy}
-          className="border-border/60 text-xs w-full sm:w-auto"
-          title="Upload manual se API falhar"
-        >
-          {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Upload className="h-4 w-4" />
-          )}
-          <span className="ml-2">Upload Fallback</span>
         </Button>
       </div>
     </div>
