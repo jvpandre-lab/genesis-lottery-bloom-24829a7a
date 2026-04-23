@@ -67,7 +67,7 @@ describe("VALIDAÇÃO: ArbiterMemory Persistência Real (Supabase)", () => {
       },
       rejected: {
         brain: "B",
-        lineage: "aggressive",
+        lineage: "aggressive" as any,
         scoreTotal: 0.88,
         diversity: 0.72,
         coverageVal: 0.85,
