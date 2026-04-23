@@ -47,10 +47,10 @@ describe("Validação Robusta dos 8 Pontos - Fluxo Híbrido", () => {
         validateDraw(Array.from({ length: 17 }, (_, i) => i)),
       ).toHaveProperty("error");
 
-      // Aceita 18-20
+      // Rejeita menos de 20
       expect(
-        Array.isArray(validateDraw(Array.from({ length: 19 }, (_, i) => i))),
-      ).toBe(true);
+        validateDraw(Array.from({ length: 19 }, (_, i) => i)),
+      ).toHaveProperty("error");
 
       // Rejeita duplicados
       const dups = Array.from({ length: 19 }, (_, i) => i);
@@ -107,11 +107,19 @@ describe("Validação Robusta dos 8 Pontos - Fluxo Híbrido", () => {
   describe("3. FALLBACK REAL", () => {
     it("deve tentar API e se der Error ou timeout, cair de forma suave com fallback", async () => {
       mockFetch.mockRejectedValueOnce(new Error("fetch failed"));
-      vi.mocked(storageService.fetchRecentDraws).mockResolvedValueOnce([]);
+      vi.mocked(storageService.fetchRecentDraws).mockResolvedValueOnce([
+        {
+          contestNumber: 1,
+          numbers: Array.from({ length: 20 }, (_, i) => i),
+          source: "api",
+          syncedAt: new Date().toISOString(),
+        },
+      ] as any);
 
       const report = await syncDraws();
       expect(report.status).toBe("fallback_banco");
       expect(report.error).toContain("API offline");
+      expect(report.source).toBe("database");
 
       const manualJSON = `[{"contestNumber": 100, "drawDate": "2024-01-01", "numbers": [${Array.from({ length: 20 }, (_, i) => i).join(",")}]}]`;
       const manualRes = parseDrawsFile(manualJSON, "historico.json");
@@ -120,6 +128,29 @@ describe("Validação Robusta dos 8 Pontos - Fluxo Híbrido", () => {
         expect(manualRes.draws[0].source).toBe("manual");
         expect(manualRes.draws[0].contestNumber).toBe(100);
       }
+    });
+
+    it("deve usar seed local quando o banco está vazio e a API estiver fora", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("fetch failed"));
+      mockFetch.mockRejectedValueOnce(new Error("fetch failed"));
+      vi.mocked(storageService.fetchRecentDraws).mockResolvedValueOnce([]);
+      vi.mocked(storageService.upsertDraws).mockResolvedValueOnce(1);
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [
+          {
+            contestNumber: 1,
+            drawDate: "2000-01-01",
+            numbers: Array.from({ length: 20 }, (_, i) => i),
+          },
+        ],
+      });
+
+      const report = await syncDraws();
+      expect(report.status).toBe("success");
+      expect(report.source).toBe("seed");
+      expect(report.seedFallback).toBe(true);
     });
   });
 

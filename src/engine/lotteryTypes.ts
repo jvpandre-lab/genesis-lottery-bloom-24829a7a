@@ -213,7 +213,7 @@ export interface OfficialDrawRecord {
   contestNumber: number;
   drawDate?: string;
   numbers: OfficialDrawNumbers; // EXATAMENTE DRAWN_SIZE dezenas sorteadas oficialmente
-  source?: "api" | "database" | "manual";
+  source?: "api" | "database" | "manual" | "seed";
   syncedAt?: string;
   lastCheckedAt?: string;
 }

@@ -6,6 +6,8 @@ import {
 } from "@/engine/lotteryTypes";
 import { fetchRecentDraws, upsertDraws } from "./storageService";
 
+export type HistorySource = "api" | "seed" | "manual" | "database" | "unknown";
+
 export interface ImportReport {
   totalRead: number;
   totalValid: number;
@@ -15,14 +17,105 @@ export interface ImportReport {
 
 export interface SyncReport {
   status: "success" | "fallback_banco" | "erro_total";
+  source?: Exclude<HistorySource, "unknown">;
+  seedFallback?: boolean;
   newRecordsAdded: number;
   recordsIgnoredDuplicate: number;
+  apiTotalFetched?: number;
   error?: string;
   lastSuccessfulSyncAt?: string;
 }
 
+const HISTORY_SOURCE_STORAGE_KEY = "genesis_lottery_history_source";
+
+export function getHistorySource(): HistorySource {
+  if (typeof window === "undefined") return "unknown";
+  const source = window.localStorage.getItem(HISTORY_SOURCE_STORAGE_KEY);
+  if (
+    source === "api" ||
+    source === "seed" ||
+    source === "manual" ||
+    source === "database"
+  ) {
+    return source;
+  }
+  return "unknown";
+}
+
+export function setHistorySource(source: Exclude<HistorySource, "unknown">) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(HISTORY_SOURCE_STORAGE_KEY, source);
+}
+
 // Global in-memory cache for status (could be persisted to LocalStorage if needed)
 let globalLastSuccessfulSync: string | null = null;
+
+async function fetchSeedDraws(): Promise<DrawRecord[]> {
+  const response = await fetch("/lotomania-seed.json");
+  if (!response.ok) {
+    throw new Error(`Falha ao carregar seed local: ${response.status}`);
+  }
+  const payload = await response.json();
+  if (!Array.isArray(payload)) {
+    throw new Error("Seed local inválida: formato esperado é array.");
+  }
+
+  const timestamp = new Date().toISOString();
+  const seenContests = new Set<number>();
+  const out: DrawRecord[] = [];
+
+  for (const item of payload) {
+    const contest = Number(item.contestNumber ?? item.concurso ?? item.numero);
+    if (!Number.isFinite(contest) || contest < 1 || seenContests.has(contest)) {
+      continue;
+    }
+    const valid = validateDraw(
+      item.numbers ?? item.dezenas ?? item.numeros ?? [],
+    );
+    if ("error" in valid) {
+      continue;
+    }
+    seenContests.add(contest);
+    out.push({
+      contestNumber: contest,
+      drawDate:
+        typeof item.drawDate === "string"
+          ? item.drawDate.slice(0, 10)
+          : undefined,
+      numbers: valid,
+      source: "seed",
+      syncedAt: timestamp,
+      lastCheckedAt: timestamp,
+    });
+  }
+
+  return out.sort((a, b) => a.contestNumber - b.contestNumber);
+}
+
+async function applySeedFallback(): Promise<SyncReport> {
+  const report: SyncReport = {
+    status: "success",
+    source: "seed",
+    seedFallback: true,
+    newRecordsAdded: 0,
+    recordsIgnoredDuplicate: 0,
+    lastSuccessfulSyncAt: new Date().toISOString(),
+  };
+
+  const seedDraws = await fetchSeedDraws();
+  if (seedDraws.length === 0) {
+    report.status = "erro_total";
+    report.error = "Seed local vazia ou inválida.";
+    return report;
+  }
+
+  const inserted = await upsertDraws(seedDraws);
+  report.newRecordsAdded = inserted;
+  report.recordsIgnoredDuplicate = seedDraws.length - inserted;
+  globalLastSuccessfulSync = report.lastSuccessfulSyncAt;
+  setHistorySource("seed");
+  return report;
+}
 
 const CAIXA_API_URL = "https://loteriascaixa-api.herokuapp.com/api/lotomania";
 
@@ -58,12 +151,10 @@ export function validateDraw(
     return { error: "invalid_domain" };
   }
 
-  if (parsed.length < 18) {
-    return { error: "insufficient_numbers" };
-  }
-
-  if (parsed.length > 20) {
-    return { error: "too_many_numbers" };
+  if (parsed.length !== 20) {
+    return {
+      error: parsed.length < 20 ? "insufficient_numbers" : "too_many_numbers",
+    };
   }
 
   const unique = Array.from(new Set(parsed));
@@ -121,17 +212,34 @@ export async function syncDraws(): Promise<SyncReport> {
     const fromDb = await fetchRecentDraws(1);
     const lastContestNumber = fromDb.length > 0 ? fromDb[0].contestNumber : 0;
 
-    // Passo 2: Buscar da API com retry e timeout
+    // Passo 2: Buscar da API com retry
     let apiData: any[];
     try {
       apiData = await fetchDrawsFromAPIWithRetry(2, 8000);
+      report.apiTotalFetched = apiData.length;
     } catch (e: any) {
+      if (lastContestNumber === 0) {
+        // Primeira inicialização com banco vazio: usar seed local se a API falhar.
+        const fallback = await applySeedFallback();
+        return {
+          ...fallback,
+          error:
+            fallback.status === "erro_total"
+              ? `API offline e seed local falhou: ${e.message}`
+              : fallback.error,
+        };
+      }
       // Fallback pro banco!
       report.status = "fallback_banco";
-      report.error = "API offline ou timeout, usando dados do cache local.";
+      report.error = "API offline ou falhou, usando dados locais existentes.";
       if (globalLastSuccessfulSync)
         report.lastSuccessfulSyncAt = globalLastSuccessfulSync;
+      report.source = "database";
       return report;
+    }
+
+    if (apiData.length === 0 && lastContestNumber === 0) {
+      return await applySeedFallback();
     }
 
     // Passo 3: Normalizar e extrair incrementais
@@ -163,6 +271,10 @@ export async function syncDraws(): Promise<SyncReport> {
       }
     }
 
+    if (toInsert.length === 0 && lastContestNumber === 0) {
+      return await applySeedFallback();
+    }
+
     if (toInsert.length > 0) {
       // Upsert defensivo (ignoreDuplicates ativado no Service para proteger histórico)
       const added = await upsertDraws(toInsert);
@@ -173,7 +285,9 @@ export async function syncDraws(): Promise<SyncReport> {
 
     globalLastSuccessfulSync = timestamp;
     report.status = "success";
+    report.source = "api";
     report.lastSuccessfulSyncAt = timestamp;
+    setHistorySource("api");
     return report;
   } catch (err: any) {
     report.status = "erro_total";

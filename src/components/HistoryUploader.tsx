@@ -1,18 +1,36 @@
-import React, { useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Upload, Database, FileWarning, Loader2 } from "lucide-react";
-import { parseDrawsFile, syncDraws } from "@/services/contestService";
-import { countDraws, upsertDraws, fetchRecentDraws } from "@/services/storageService";
 import { toast } from "@/hooks/use-toast";
+import {
+  getHistorySource,
+  HistorySource,
+  parseDrawsFile,
+  setHistorySource,
+  syncDraws,
+} from "@/services/contestService";
+import {
+  countDraws,
+  fetchRecentDraws,
+  upsertDraws,
+} from "@/services/storageService";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Database, FileWarning, Loader2, Upload } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 
-export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (total: number) => void }>(({ onChanged }, _ref) => {
+export const HistoryUploader = React.forwardRef<
+  HTMLDivElement,
+  { onChanged?: (total: number) => void }
+>(({ onChanged }, _ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [count, setCount] = useState<number | null>(null);
-  const [latestSync, setLatestSync] = useState<{ source?: string; syncedAt?: string } | null>(null);
+  const [historySource, setHistorySourceState] =
+    useState<HistorySource>("unknown");
+  const [latestSync, setLatestSync] = useState<{
+    source?: string;
+    syncedAt?: string;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
@@ -22,31 +40,103 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
       if (c > 0) {
         const recent = await fetchRecentDraws(1);
         if (recent.length > 0) {
-          setLatestSync({ source: recent[0].source, syncedAt: recent[0].syncedAt });
+          setLatestSync({
+            source: recent[0].source,
+            syncedAt: recent[0].syncedAt,
+          });
         }
+        setHistorySourceState(getHistorySource());
       } else {
         setLatestSync(null);
+        setHistorySourceState("unknown");
       }
       onChanged?.(c);
-    } catch { setCount(null); setLatestSync(null); }
+      return c;
+    } catch {
+      setCount(null);
+      setLatestSync(null);
+      setHistorySourceState("unknown");
+      return 0;
+    }
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    (async () => {
+      const currentCount = await refresh();
+      if (currentCount === 0) {
+        setBusy(true);
+        try {
+          const report = await syncDraws();
+          if (report.status === "success") {
+            const source = report.source ?? "database";
+            if (source !== "database") {
+              setHistorySource(source);
+            }
+            setHistorySourceState(source as HistorySource);
+            toast({
+              title: "Histórico inicial carregado",
+              description:
+                source === "seed"
+                  ? "Seed local carregada porque a API não estava disponível."
+                  : "Histórico inicial recuperado da API oficial.",
+            });
+          } else {
+            toast({
+              title: "Falha ao inicializar histórico",
+              description:
+                report.error ||
+                "Não foi possível carregar o histórico inicial.",
+              variant: "destructive",
+            });
+          }
+        } catch (e: any) {
+          toast({
+            title: "Falha ao inicializar histórico",
+            description: e?.message || "Erro desconhecido",
+            variant: "destructive",
+          });
+        } finally {
+          setBusy(false);
+          await refresh();
+        }
+      }
+    })();
+  }, []);
 
   async function handleSyncApi() {
     setBusy(true);
     try {
       const report = await syncDraws();
       if (report.status === "success") {
-        toast({ title: "Sincronização OK", description: `${report.newRecordsAdded} concursos novos adicionados. ${report.recordsIgnoredDuplicate} já registrados.` });
+        toast({
+          title: "Sincronização OK",
+          description: `${report.newRecordsAdded} concursos novos adicionados. ${report.recordsIgnoredDuplicate} já registrados.`,
+        });
       } else if (report.status === "fallback_banco") {
-        toast({ title: "Fallback Automático", description: "API da Caixa demorou a responder ou falhou. Operando 100% com dados do banco atual." });
+        toast({
+          title: "Fallback Automático",
+          description:
+            "API da Caixa demorou a responder ou falhou. Operando 100% com dados do banco atual.",
+        });
       } else {
-        toast({ title: "Erro Crítico", description: report.error || "A API e o Banco falharam simultaneamente.", variant: "destructive" });
+        toast({
+          title: "Erro Crítico",
+          description:
+            report.error || "A API e o Banco falharam simultaneamente.",
+          variant: "destructive",
+        });
+      }
+      if (report.source) {
+        setHistorySource(report.source);
+        setHistorySourceState(report.source as HistorySource);
       }
       await refresh();
     } catch (e: any) {
-      toast({ title: "Falha de Sincronização", description: e.message, variant: "destructive" });
+      toast({
+        title: "Falha de Sincronização",
+        description: e.message,
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -60,18 +150,32 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
       const { draws, report } = result;
 
       if (draws.length === 0) {
-        toast({ title: "Nenhum concurso reconhecido", description: "Verifique o formato do arquivo.", variant: "destructive" });
+        toast({
+          title: "Nenhum concurso reconhecido",
+          description: "Verifique o formato do arquivo.",
+          variant: "destructive",
+        });
         return;
       }
       const inserted = await upsertDraws(draws);
-      const discardSummary = report?.discardReasons ? Object.entries(report.discardReasons).map(([reason, count]) => `${reason}: ${count}`).join(", ") : "";
+      setHistorySource("manual");
+      setHistorySourceState("manual");
+      const discardSummary = report?.discardReasons
+        ? Object.entries(report.discardReasons)
+            .map(([reason, count]) => `${reason}: ${count}`)
+            .join(", ")
+        : "";
       toast({
         title: "Histórico atualizado",
-        description: `${inserted} concursos importados. Lidos: ${report?.totalRead || 0}, Válidos: ${report?.totalValid || 0}, Descartados: ${report?.totalDiscarded || 0}${discardSummary ? ` (${discardSummary})` : ""}.`
+        description: `${inserted} concursos importados. Lidos: ${report?.totalRead || 0}, Válidos: ${report?.totalValid || 0}, Descartados: ${report?.totalDiscarded || 0}${discardSummary ? ` (${discardSummary})` : ""}.`,
       });
       await refresh();
     } catch (e: any) {
-      toast({ title: "Falha ao importar", description: e?.message ?? "Erro desconhecido", variant: "destructive" });
+      toast({
+        title: "Falha ao importar",
+        description: e?.message ?? "Erro desconhecido",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -86,22 +190,60 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
         <div>
           <div className="text-sm font-medium flex items-center gap-2">
             Histórico Oficial
-            {latestSync?.source && (
-              <Badge variant="outline" className={`text-[10px] uppercase h-5 font-bold ${latestSync.source === 'api' ? 'text-green-400 border-green-500/30' : latestSync.source === 'manual' ? 'text-yellow-400 border-yellow-500/30' : 'text-blue-400 border-blue-500/30'}`}>
-                Origem: {latestSync.source}
+            {historySource !== "unknown" && (
+              <Badge
+                variant="outline"
+                className={`text-[10px] uppercase h-5 font-bold ${historySource === "api" ? "text-green-400 border-green-500/30" : historySource === "manual" ? "text-yellow-400 border-yellow-500/30" : historySource === "seed" ? "text-indigo-400 border-indigo-500/30" : "text-blue-400 border-blue-500/30"}`}
+              >
+                Origem: {historySource}
               </Badge>
             )}
           </div>
           <div className="text-[11px] text-muted-foreground flex flex-col mt-0.5">
-            {count === null ? "Indisponível" : count === 0 ? (
-              <span className="inline-flex items-center gap-1 text-yellow-500/80"><FileWarning className="h-3 w-3" /> Nenhum concurso. Anti-viés operará no escuro.</span>
+            {count === null ? (
+              "Indisponível"
+            ) : count === 0 ? (
+              <span className="inline-flex items-center gap-1 text-yellow-500/80">
+                <FileWarning className="h-3 w-3" /> Nenhum concurso. Anti-viés
+                operará no escuro.
+              </span>
             ) : (
               <span>{count} concursos armazenados na base local.</span>
             )}
 
+            {count > 0 && historySource === "unknown" && (
+              <span className="text-[10px] opacity-75 text-yellow-400">
+                Histórico disponível, mas a origem não pôde ser rastreada.
+              </span>
+            )}
+            {historySource === "seed" && count > 0 && (
+              <span className="text-[10px] opacity-75 text-indigo-400">
+                Histórico inicial carregado da seed local.
+              </span>
+            )}
+            {historySource === "manual" && count > 0 && (
+              <span className="text-[10px] opacity-75 text-yellow-400">
+                Histórico atualizado via upload manual.
+              </span>
+            )}
+            {historySource === "api" && count > 0 && (
+              <span className="text-[10px] opacity-75 text-green-400">
+                Histórico atualizado da API oficial.
+              </span>
+            )}
+            {historySource === "database" && count > 0 && (
+              <span className="text-[10px] opacity-75 text-blue-400">
+                Histórico existente encontrado no banco local.
+              </span>
+            )}
+
             {latestSync?.syncedAt && (
               <span className="text-[10px] opacity-75">
-                Última sincronia: {formatDistanceToNow(new Date(latestSync.syncedAt), { addSuffix: true, locale: ptBR })}
+                Última sincronia:{" "}
+                {formatDistanceToNow(new Date(latestSync.syncedAt), {
+                  addSuffix: true,
+                  locale: ptBR,
+                })}
               </span>
             )}
           </div>
@@ -115,7 +257,11 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
           disabled={busy}
           className="w-full sm:w-auto"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Database className="h-4 w-4" />
+          )}
           <span className="ml-2">Sincronizar API</span>
         </Button>
         <Input
@@ -123,7 +269,11 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
           type="file"
           accept=".csv,.json,.txt"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+            e.target.value = "";
+          }}
         />
         <Button
           variant="outline"
@@ -132,7 +282,11 @@ export const HistoryUploader = React.forwardRef<HTMLDivElement, { onChanged?: (t
           disabled={busy}
           className="border-border/60 text-xs w-full sm:w-auto"
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
           <span className="ml-2">Upload Fallback</span>
         </Button>
       </div>
