@@ -88,15 +88,8 @@ async function fetchDrawsFromAPIWithRetry(
   timeoutMs = 8000,
 ): Promise<any[]> {
   for (let attempt = 1; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeoutMs);
-
     try {
-      const response = await fetch(CAIXA_API_URL, {
-        signal: controller.signal,
-      });
-      clearTimeout(id);
-
+      const response = await fetch(CAIXA_API_URL);
       if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
       }
@@ -104,7 +97,6 @@ async function fetchDrawsFromAPIWithRetry(
       if (!Array.isArray(data)) throw new Error("API não retornou um array.");
       return data;
     } catch (e: any) {
-      clearTimeout(id);
       console.warn(`[API] Tentativa ${attempt} falhou: ${e.message}`);
       if (attempt === retries) {
         throw new Error("Todas as tentativas de fetch falharam.");
