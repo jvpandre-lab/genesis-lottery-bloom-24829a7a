@@ -187,6 +187,9 @@ const Index = () => {
           </div>
         </section>
 
+        {/* Saúde do Histórico */}
+        <HistoryHealthIndicator />
+
         {/* Histórico */}
         <HistoryUploader onChanged={setDraws} />
 
