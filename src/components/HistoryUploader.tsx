@@ -16,7 +16,7 @@ import {
 } from "@/services/storageService";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Database, FileWarning, Loader2, Upload } from "lucide-react";
+import { Database, Download, FileWarning, Loader2, Upload } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 export const HistoryUploader = React.forwardRef<
