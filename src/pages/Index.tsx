@@ -20,7 +20,12 @@ import { GenerationResult, Scenario } from "@/engine/lotteryTypes";
 import { recommend } from "@/engine/recommendationEngine";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { fetchRecentDraws, persistGeneration } from "@/services/storageService";
+import {
+  fetchRecentDraws,
+  fetchRecentRealDraws,
+  isBootstrapOnly,
+  persistGeneration,
+} from "@/services/storageService";
 import {
   Activity,
   Cpu,
@@ -56,17 +61,33 @@ const Index = () => {
   async function handleGenerate() {
     setBusy(true);
     try {
-      // Busca os draws mais recentes para contexto de geração
-      // fetchRecentDraws(8) obtém os 8 mais recentes por contest_number DESC
-      // Isso inclui seed bootstrap antigo se apenas seed estiver carregado
-      // Para evitar mistura: usar fetchRecentRealDraws() se quiser apenas dados reais
       let recent: any[] = [];
       let recentGens: any[] = [];
       try {
-        recent = await fetchRecentDraws(8);
-        // NOTA: Se quiser separar dados reais de bootstrap, use:
-        // const realRecent = await fetchRecentRealDraws(8);
-        // const finalRecent = realRecent.length > 0 ? realRecent : recent;
+        // Estratégia: Usar contexto recente REAL para geração
+        // Evita que seed histórico antigo (1999-2003) seja usado como "recente"
+        const realRecent = await fetchRecentRealDraws(8);
+        const bootstrapOnly = await isBootstrapOnly();
+
+        if (realRecent.length > 0) {
+          recent = realRecent;
+          console.log(
+            "[GENERATE] Usando contexto recente REAL:",
+            realRecent
+              .map((d: any) => `${d.contestNumber}(${d.drawDate})`)
+              .join(", "),
+          );
+        } else if (bootstrapOnly) {
+          recent = [];
+          console.warn(
+            "[GENERATE] Bootstrap puro detectado. Contexto recente vazio para evitar dados históricos de 2003.",
+          );
+        } else {
+          recent = await fetchRecentDraws(8);
+          console.log(
+            "[GENERATE] Fallback: usando fetchRecentDraws (pode incluir dados históricos)",
+          );
+        }
       } catch {}
       try {
         recentGens = await fetchRecentGenerations(10);
