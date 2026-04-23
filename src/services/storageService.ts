@@ -493,6 +493,8 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
     cluster: number;
     memory_bias: number | null;
     outcome_good: boolean | null;
+    outcome_hits: number | null;
+    outcome_quality: "good" | "neutral" | "bad" | null;
     metadata: any;
     source: string | null;
   }>
@@ -518,13 +520,19 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
 export async function updateArbiterDecisionOutcome(
   id: string,
   good: boolean,
+  hits?: number,
+  quality?: "good" | "neutral" | "bad",
 ): Promise<void> {
+  const payload: Record<string, unknown> = {
+    decision: good ? "chosen" : "rejected",
+    outcome_good: good,
+  };
+  if (hits !== undefined) payload.outcome_hits = hits;
+  if (quality !== undefined) payload.outcome_quality = quality;
+
   const { error } = await supabase
     .from("arbiter_decisions")
-    .update({
-      decision: good ? "chosen" : "rejected",
-      outcome_good: good,
-    })
+    .update(payload)
     .eq("id", id);
 
   if (error) {

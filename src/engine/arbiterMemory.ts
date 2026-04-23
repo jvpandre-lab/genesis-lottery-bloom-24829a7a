@@ -34,6 +34,10 @@ export interface ArbiterDecisionRecord {
   rejected: DecisionCandidateSnapshot;
   context: DecisionContext;
   good: boolean;
+  /** Real hits count from the draw result — populated by applyLearning() */
+  outcomeHits?: number;
+  /** Quality classification derived from outcomeHits */
+  outcomeQuality?: "good" | "neutral" | "bad";
 }
 
 interface BrainStats {
@@ -49,6 +53,8 @@ interface ArbiterMemoryState {
   decisions: ArbiterDecisionRecord[];
   stats: Record<Scenario, ScenarioBrainStats>;
   errors: Record<string, number>;
+  /** Per-scenario memory bias accumulated from real outcome learning */
+  memoryBias: Record<Scenario, number>;
   updatedAt: string;
 }
 
@@ -60,6 +66,10 @@ function createScenarioStats(): ScenarioBrainStats {
   return { A: createStats(), B: createStats() };
 }
 
+function createDefaultMemoryBias(): Record<Scenario, number> {
+  return { conservative: 0, hybrid: 0, aggressive: 0, exploratory: 0 };
+}
+
 const DEFAULT_STATE: ArbiterMemoryState = {
   decisions: [],
   stats: {
@@ -69,6 +79,7 @@ const DEFAULT_STATE: ArbiterMemoryState = {
     exploratory: createScenarioStats(),
   },
   errors: {},
+  memoryBias: createDefaultMemoryBias(),
   updatedAt: new Date().toISOString(),
 };
 
@@ -129,6 +140,10 @@ async function loadState(): Promise<ArbiterMemoryState> {
           ...parsed.stats?.exploratory,
         },
       },
+      memoryBias: {
+        ...createDefaultMemoryBias(),
+        ...(parsed.memoryBias ?? {}),
+      },
       decisions: Array.isArray(parsed.decisions)
         ? parsed.decisions.slice(-MAX_DECISIONS)
         : [],
@@ -184,11 +199,16 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
         typeof row.outcome_good === "boolean"
           ? row.outcome_good
           : row.decision === "chosen",
+      // Rehydrate learning outcomes from DB (enables persistent idempotency guard)
+      outcomeHits: row.outcome_hits ?? undefined,
+      outcomeQuality: (row.outcome_quality as ArbiterDecisionRecord["outcomeQuality"]) ?? undefined,
     }));
 
     // Rebuild stats from decisions
     const stats = { ...DEFAULT_STATE.stats };
     const errors: Record<string, number> = {};
+    // Rebuild memoryBias from evaluated decisions
+    const memoryBias = createDefaultMemoryBias();
 
     for (const decision of decisions) {
       const scenario = decision.context.scenario;
@@ -204,6 +224,17 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
         const errorKey = buildErrorKey(scenario, chosenBrain, rejectedBrain);
         errors[errorKey] = (errors[errorKey] ?? 0) + 1;
       }
+
+      // Rebuild memoryBias from persisted quality outcomes
+      if (decision.outcomeQuality) {
+        const totalDecisions = Math.max(1, decisions.length / 20);
+        const rawDelta = computeRawDelta(decision.outcomeQuality, decision.outcomeHits ?? 0);
+        memoryBias[scenario] = clamp(
+          memoryBias[scenario] + rawDelta / totalDecisions,
+          -0.5,
+          0.5,
+        );
+      }
     }
 
     console.log(
@@ -214,6 +245,7 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
       decisions,
       stats,
       errors,
+      memoryBias,
       updatedAt: new Date().toISOString(),
     };
   } catch (error) {
@@ -262,6 +294,32 @@ function buildErrorKey(
   return `${scenario}|chosen:${chosen}|rejected:${rejected}`;
 }
 
+/** Classify outcome quality based on hit count */
+function classifyQuality(hits: number): "good" | "neutral" | "bad" {
+  if (hits >= 11) return "good";
+  if (hits >= 9) return "neutral";
+  return "bad";
+}
+
+/**
+ * Compute the raw bias delta for a given quality and hit count.
+ * good  → +0.1 to +0.3 (linear scale based on hits above 10)
+ * bad   → -0.1 to -0.3 (linear scale based on hits below 10)
+ * neutral → 0
+ */
+function computeRawDelta(
+  quality: "good" | "neutral" | "bad",
+  hits: number,
+): number {
+  if (quality === "good") {
+    return 0.1 + 0.02 * clamp(hits - 10, 0, 10);
+  }
+  if (quality === "bad") {
+    return -(0.1 + 0.02 * clamp(10 - hits, 0, 10));
+  }
+  return 0; // neutral
+}
+
 let state: ArbiterMemoryState = JSON.parse(JSON.stringify(DEFAULT_STATE));
 let stateLoaded = false;
 
@@ -288,11 +346,13 @@ export const arbiterMemory = {
   getSummary(): {
     decisionCount: number;
     successRates: Record<Scenario, { A: number; B: number }>;
+    memoryBias: Record<Scenario, number>;
     updatedAt: string;
   } {
     return {
       decisionCount: state.decisions.length,
       updatedAt: state.updatedAt,
+      memoryBias: { ...state.memoryBias },
       successRates: {
         conservative: {
           A: scoreRate(state.stats.conservative.A),
@@ -384,6 +444,88 @@ export const arbiterMemory = {
     saveState(state);
   },
 
+  /**
+   * Apply real learning from an actual draw result.
+   *
+   * Guards:
+   * - If the decision doesn't exist → no-op
+   * - If `decision.outcomeHits` is already set → skip (idempotent, works across
+   *   sessions because outcomeHits is rehydrated from DB on load)
+   *
+   * Effect:
+   * - Adjusts `memoryBias[scenario]` based on hit quality
+   * - Persists outcome_hits + outcome_quality to DB
+   *
+   * @param decisionId  ID of the ArbiterDecisionRecord to update
+   * @param hits        Real number of matched numbers in the draw
+   * @param contestNumber  Contest number (logged for traceability)
+   */
+  applyLearning(decisionId: string, hits: number, contestNumber: number): void {
+    const decision = state.decisions.find((d) => d.id === decisionId);
+
+    if (!decision) {
+      console.warn(
+        `[ARBITER LEARNING] decisionId ${decisionId} not found in memory`,
+      );
+      return;
+    }
+
+    // --- Idempotency guard (persistent-safe) ---
+    if (decision.outcomeHits !== undefined) {
+      console.log(
+        `[ARBITER LEARNING] skipped duplicate outcome` +
+        ` | decisionId: ${decisionId}` +
+        ` | contestNumber: ${contestNumber}` +
+        ` | already evaluated with hits=${decision.outcomeHits} quality=${decision.outcomeQuality}`,
+      );
+      return;
+    }
+
+    const quality = classifyQuality(hits);
+    const scenario = decision.context.scenario;
+    const biasBefore = state.memoryBias[scenario];
+
+    // Raw delta based on quality and magnitude of hits
+    const rawDelta = computeRawDelta(quality, hits);
+
+    // Normalize by decisions count to prevent weight explosion
+    const normFactor = Math.max(1, state.decisions.length / 20);
+    const normalizedDelta = rawDelta / normFactor;
+
+    const biasAfter = clamp(biasBefore + normalizedDelta, -0.5, 0.5);
+    state.memoryBias[scenario] = biasAfter;
+
+    // Stamp the decision record with real outcome data
+    decision.outcomeHits = hits;
+    decision.outcomeQuality = quality;
+    decision.good = quality !== "bad";
+
+    // Persist to DB (non-blocking)
+    updateArbiterDecisionOutcome(decisionId, decision.good, hits, quality).catch(
+      (err) => {
+        console.warn(
+          "[ARBITER LEARNING] DB update failed (local state was applied):",
+          err,
+        );
+      },
+    );
+
+    saveState(state);
+
+    // --- Structured learning log ---
+    console.log(
+      `[ARBITER LEARNING]\n` +
+      `  decisionId:    ${decisionId}\n` +
+      `  contestNumber: ${contestNumber}\n` +
+      `  hits:          ${hits}\n` +
+      `  quality:       ${quality}\n` +
+      `  scenario:      ${scenario}\n` +
+      `  biasBefore:    ${biasBefore.toFixed(6)}\n` +
+      `  normalizedDelta: ${normalizedDelta.toFixed(6)}\n` +
+      `  biasAfter:     ${biasAfter.toFixed(6)}`,
+    );
+  },
+
   getBrainBias(
     brain: "A" | "B",
     scenario: Scenario,
@@ -401,6 +543,12 @@ export const arbiterMemory = {
     if (coverageVal < 0.38 && brain === "A") bias += 0.02;
     if (balanceA < 0.35 && brain === "A") bias += 0.02;
     if (selfRate < 0.4 && otherRate > 0.6) bias -= 0.04;
+
+    // Incorporate real outcome learning bias (halved to be additive, not dominant)
+    const learnedBias = state.memoryBias[scenario] * 0.5;
+    // Brain A benefits from positive bias, B benefits from negative
+    bias += brain === "A" ? learnedBias : -learnedBias;
+
     return clamp(bias, -0.35, 0.35);
   },
 
