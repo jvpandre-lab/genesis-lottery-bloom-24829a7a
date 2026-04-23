@@ -237,16 +237,37 @@ export function arbitrateBatch(
       },
       good: chosen.value >= rejected.value,
     };
-    arbiterMemory.registerDecision(decisionRecord);
+    const decisionId = arbiterMemory.registerDecision(decisionRecord);
+    // Stamp decisionId onto the chosen proposal so proposalToGame can carry it into Game.
+    // Use a typed extension to avoid `any`.
+    (chosen.c as BrainProposal & { __decisionId?: string }).__decisionId = decisionId;
+
+    const currentBias = arbiterMemory.getBrainBias(
+      chosen.c.brain,
+      scenario,
+      targetBalanceA,
+      chosen.marginalDiv,
+      chosen.c.coverageVal,
+    );
+    console.log(
+      `[ARBITER REGISTER]` +
+      ` decisionId=${decisionId}` +
+      ` batch=${batchName}` +
+      ` slot=${accepted.length}` +
+      ` scenario=${scenario}` +
+      ` chosenBrain=${chosen.c.brain}/${chosen.c.lineage}` +
+      ` memoryBias=${currentBias.toFixed(4)}` +
+      ` persisted=true (async)`,
+    );
 
     reasoning.push(
       `Slot ${accepted.length}: ${chosen.c.brain}/${chosen.c.lineage} ` +
-        `score=${chosen.c.scoreTotal.toFixed(3)} ` +
-        `divΔ=${chosen.marginalDiv.toFixed(3)} ` +
-        `cov=${chosen.c.coverageVal.toFixed(3)} ` +
-        `cl=${chosen.c.clusterVal.toFixed(3)} ` +
-        `margin=${margin.toFixed(3)} ` +
-        `memBias=${arbiterMemory.getBrainBias(chosen.c.brain, scenario, targetBalanceA, chosen.marginalDiv, chosen.c.coverageVal).toFixed(3)}`,
+      `score=${chosen.c.scoreTotal.toFixed(3)} ` +
+      `divΔ=${chosen.marginalDiv.toFixed(3)} ` +
+      `cov=${chosen.c.coverageVal.toFixed(3)} ` +
+      `cl=${chosen.c.clusterVal.toFixed(3)} ` +
+      `margin=${margin.toFixed(3)} ` +
+      `memBias=${currentBias.toFixed(3)}`,
     );
     remaining.splice(remaining.indexOf(chosen.c), 1);
   }
@@ -308,5 +329,10 @@ export function proposalToGame(
 ): Game {
   const m = computeMetrics(p.numbers);
   const s = scoreGame(p.numbers, { ...ctxBase, lineage: p.lineage }, m);
-  return { numbers: p.numbers, lineage: p.lineage, score: s, metrics: m };
+  const game: Game = { numbers: p.numbers, lineage: p.lineage, score: s, metrics: m };
+  // Carry forward decisionId stamped by arbitrateBatch so the game can be linked
+  // back to its arbiter decision for real outcome learning (applyLearning).
+  const decisionId = (p as BrainProposal & { __decisionId?: string }).__decisionId;
+  if (decisionId) game.decisionId = decisionId;
+  return game;
 }

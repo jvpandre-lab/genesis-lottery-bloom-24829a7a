@@ -159,6 +159,8 @@ export interface Game {
   metrics: GameMetrics;
   tacticalRole?: TacticalRole;
   roleScore?: number;
+  /** ID da decisão do arbiterMemory que escolheu este jogo. Permite rastrear aprendizado real. */
+  decisionId?: string;
 }
 
 export type GeneratedGame = Game;
@@ -176,6 +178,7 @@ export interface Batch {
 export interface ArbiterMemorySummary {
   decisionCount: number;
   successRates: Record<Scenario, { A: number; B: number }>;
+  memoryBias: Record<Scenario, number>;
   updatedAt: string;
 }
 

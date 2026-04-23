@@ -450,6 +450,9 @@ export async function persistArbiterDecision(decision: {
     memory_bias: null,
     decision: decision.good ? "chosen" : "rejected",
     outcome_good: decision.good,
+    // outcome_hits and outcome_quality are null on insert — filled later by applyLearning()
+    outcome_hits: null,
+    outcome_quality: null,
     scores: {
       chosen: decision.chosen,
       rejected: decision.rejected,
@@ -462,13 +465,20 @@ export async function persistArbiterDecision(decision: {
   });
   if (error) {
     console.error(
-      "[ARBITER] TABLE arbiter_decisions NOT FOUND - persistence DISABLED",
+      `[ARBITER PERSIST ERROR] decisionId=${decision.id}` +
+      ` batch=${decision.context.batchName}` +
+      ` slot=${decision.context.slot}` +
+      ` code=${error.code} message=${error.message}`,
     );
-    console.error("Error code:", error.code, "|", error.message);
     throw new Error(
-      "arbiter_decisions table does not exist. Migration not applied?",
+      `arbiter_decisions insert failed [${error.code}]: ${error.message}`,
     );
   }
+  console.log(
+    `[ARBITER PERSIST OK] decisionId=${decision.id}` +
+    ` batch=${decision.context.batchName}` +
+    ` slot=${decision.context.slot}`,
+  );
 }
 
 export async function fetchArbiterDecisions(limit = 400): Promise<
