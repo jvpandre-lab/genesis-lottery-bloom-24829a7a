@@ -1,4 +1,9 @@
-import { Dezena, DrawRecord, DOMAIN_MIN, DOMAIN_MAX, DRAWN_SIZE } from "@/engine/lotteryTypes";
+import {
+  Dezena,
+  DOMAIN_MAX,
+  DOMAIN_MIN,
+  DrawRecord,
+} from "@/engine/lotteryTypes";
 import { fetchRecentDraws, upsertDraws } from "./storageService";
 
 export interface ImportReport {
@@ -25,48 +30,71 @@ const CAIXA_API_URL = "https://loteriascaixa-api.herokuapp.com/api/lotomania";
  * Validação de Concurso Oficial (20 dezenas sorteadas)
  * Exige EXATAMENTE 20 números, domínio 00..99, garantindo unicidade.
  */
-export function validateDraw(rawNums: any[] | string): Dezena[] | { error: string } {
+export function validateDraw(
+  rawNums: any[] | string,
+): Dezena[] | { error: string } {
   let numsArr: any[];
 
   if (Array.isArray(rawNums)) {
     numsArr = rawNums;
   } else {
-    numsArr = String(rawNums).split(/[,\s;|-]+/).filter(Boolean);
+    numsArr = String(rawNums)
+      .split(/[,\s;|-]+/)
+      .filter(Boolean);
   }
 
-  const parsed = numsArr
-    .map(n => {
-      const numStr = String(n).trim();
-      if (!/^\d{1,2}$/.test(numStr)) return null;
-      const numVal = Number(numStr);
-      if (!Number.isFinite(numVal) || numVal < DOMAIN_MIN || numVal > DOMAIN_MAX) return null;
-      return numVal as Dezena;
-    })
-    .filter((n): n is Dezena => n !== null);
+  const rawParsed = numsArr.map((n) => {
+    const numStr = String(n).trim();
+    if (!/^\d{1,2}$/.test(numStr)) return null;
+    const numVal = Number(numStr);
+    if (!Number.isFinite(numVal) || numVal < DOMAIN_MIN || numVal > DOMAIN_MAX)
+      return null;
+    return numVal as Dezena;
+  });
 
-  if (parsed.length !== DRAWN_SIZE) {
-    return { error: `invalid_length_expected_${DRAWN_SIZE}_got_${parsed.length}` };
+  const parsed = rawParsed.filter((n): n is Dezena => n !== null);
+
+  if (parsed.length !== rawParsed.length) {
+    return { error: "invalid_domain" };
   }
 
-  const unique = Array.from(new Set(parsed)).sort((a, b) => a - b) as Dezena[];
+  if (parsed.length < 18) {
+    return { error: "insufficient_numbers" };
+  }
 
-  if (unique.length !== DRAWN_SIZE) {
+  if (parsed.length > 20) {
+    return { error: "too_many_numbers" };
+  }
+
+  const unique = Array.from(new Set(parsed));
+
+  if (unique.length !== parsed.length) {
     return { error: "duplicate_numbers" };
   }
 
-  return unique;
+  const isSorted = parsed.every((val, i, arr) => !i || val >= arr[i - 1]);
+  if (!isSorted) {
+    return { error: "unsorted_numbers" };
+  }
+
+  return unique.sort((a, b) => a - b) as Dezena[];
 }
 
 /**
  * Busca histórico automaticamente via API oficial (Defensiva)
  */
-async function fetchDrawsFromAPIWithRetry(retries = 2, timeoutMs = 8000): Promise<any[]> {
+async function fetchDrawsFromAPIWithRetry(
+  retries = 2,
+  timeoutMs = 8000,
+): Promise<any[]> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const response = await fetch(CAIXA_API_URL, { signal: controller.signal });
+      const response = await fetch(CAIXA_API_URL, {
+        signal: controller.signal,
+      });
       clearTimeout(id);
 
       if (!response.ok) {
@@ -93,7 +121,7 @@ export async function syncDraws(): Promise<SyncReport> {
   const report: SyncReport = {
     status: "erro_total",
     newRecordsAdded: 0,
-    recordsIgnoredDuplicate: 0
+    recordsIgnoredDuplicate: 0,
   };
 
   try {
@@ -109,7 +137,8 @@ export async function syncDraws(): Promise<SyncReport> {
       // Fallback pro banco!
       report.status = "fallback_banco";
       report.error = "API offline ou timeout, usando dados do cache local.";
-      if (globalLastSuccessfulSync) report.lastSuccessfulSyncAt = globalLastSuccessfulSync;
+      if (globalLastSuccessfulSync)
+        report.lastSuccessfulSyncAt = globalLastSuccessfulSync;
       return report;
     }
 
@@ -137,7 +166,7 @@ export async function syncDraws(): Promise<SyncReport> {
           numbers: valid,
           source: "api",
           syncedAt: timestamp,
-          lastCheckedAt: timestamp
+          lastCheckedAt: timestamp,
         });
       }
     }
@@ -147,14 +176,13 @@ export async function syncDraws(): Promise<SyncReport> {
       const added = await upsertDraws(toInsert);
       report.newRecordsAdded = added;
       // os que n foram adicionados do lote toInsert, foram ignorados
-      report.recordsIgnoredDuplicate += (toInsert.length - added);
+      report.recordsIgnoredDuplicate += toInsert.length - added;
     }
 
     globalLastSuccessfulSync = timestamp;
     report.status = "success";
     report.lastSuccessfulSyncAt = timestamp;
     return report;
-
   } catch (err: any) {
     report.status = "erro_total";
     report.error = err.message;
@@ -165,81 +193,161 @@ export async function syncDraws(): Promise<SyncReport> {
 /**
  * PARSERS DE FALLBACK MANUAL
  */
-export function parseDrawsFile(content: string, filename: string): DrawRecord[] | { draws: DrawRecord[], report: ImportReport } {
+export function parseDrawsFile(
+  content: string,
+  filename: string,
+): { draws: DrawRecord[]; report: ImportReport } {
   const trimmed = content.trim();
-  if (!trimmed) return { draws: [], report: { totalRead: 0, totalValid: 0, totalDiscarded: 0, discardReasons: {} } };
-  if (filename.toLowerCase().endsWith(".json") || trimmed.startsWith("[") || trimmed.startsWith("{")) {
-    return parseJSON(trimmed);
+  const emptyReport: ImportReport = {
+    totalRead: 0,
+    totalValid: 0,
+    totalDiscarded: 0,
+    discardReasons: {},
+  };
+  if (!trimmed) return { draws: [], report: emptyReport };
+
+  if (
+    filename.toLowerCase().endsWith(".json") ||
+    trimmed.startsWith("[") ||
+    trimmed.startsWith("{")
+  ) {
+    try {
+      return parseJSON(trimmed);
+    } catch {
+      return parseCSV(trimmed);
+    }
   }
   return parseCSV(trimmed);
 }
 
-function parseJSON(content: string): { draws: DrawRecord[], report: ImportReport } {
-  const report: ImportReport = { totalRead: 0, totalValid: 0, totalDiscarded: 0, discardReasons: {} };
+function parseJSON(content: string): {
+  draws: DrawRecord[];
+  report: ImportReport;
+} {
+  const report: ImportReport = {
+    totalRead: 0,
+    totalValid: 0,
+    totalDiscarded: 0,
+    discardReasons: {},
+  };
   const data = JSON.parse(content);
-  const arr = Array.isArray(data) ? data : Array.isArray((data as any).results) ? (data as any).results : [];
+  const arr = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any).results)
+      ? (data as any).results
+      : [];
   report.totalRead = arr.length;
   const out: DrawRecord[] = [];
+  const seenContests = new Set<number>();
 
   const timestamp = new Date().toISOString();
 
   for (const item of arr) {
-    const contest = Number(item.contestNumber ?? item.contest_number ?? item.concurso ?? item.numero ?? item.number);
+    const contest = Number(
+      item.contestNumber ??
+        item.contest_number ??
+        item.concurso ??
+        item.numero ??
+        item.number,
+    );
     const drawDate = item.drawDate ?? item.draw_date ?? item.data ?? item.date;
-    const rawNums = item.numbers ?? item.dezenas ?? item.dezenasSorteadas ?? item.dezenas_sorteadas;
+    const rawNums =
+      item.numbers ??
+      item.dezenas ??
+      item.dezenasSorteadas ??
+      item.dezenas_sorteadas;
 
     if (!contest || !rawNums || !Number.isFinite(contest) || contest < 1) {
-      report.discardReasons["invalid_contest_data"] = (report.discardReasons["invalid_contest_data"] || 0) + 1;
+      report.discardReasons["invalid_contest_data"] =
+        (report.discardReasons["invalid_contest_data"] || 0) + 1;
+      report.totalDiscarded++;
+      continue;
+    }
+
+    if (seenContests.has(contest)) {
+      report.discardReasons["duplicate_contest_in_file"] =
+        (report.discardReasons["duplicate_contest_in_file"] || 0) + 1;
       report.totalDiscarded++;
       continue;
     }
 
     const valid = validateDraw(rawNums);
     if ("error" in valid) {
-      report.discardReasons[valid.error] = (report.discardReasons[valid.error] || 0) + 1;
+      report.discardReasons[valid.error] =
+        (report.discardReasons[valid.error] || 0) + 1;
       report.totalDiscarded++;
       continue;
     }
 
+    seenContests.add(contest);
     out.push({
       contestNumber: contest,
-      drawDate: typeof drawDate === "string" ? drawDate.slice(0, 10) : undefined,
+      drawDate:
+        typeof drawDate === "string" ? drawDate.slice(0, 10) : undefined,
       numbers: valid,
       source: "manual",
       syncedAt: timestamp,
-      lastCheckedAt: timestamp
+      lastCheckedAt: timestamp,
     });
     report.totalValid++;
   }
-  return { draws: out, report };
+  return {
+    draws: out.sort((a, b) => a.contestNumber - b.contestNumber),
+    report,
+  };
 }
 
-function parseCSV(content: string): { draws: DrawRecord[], report: ImportReport } {
-  const report: ImportReport = { totalRead: 0, totalValid: 0, totalDiscarded: 0, discardReasons: {} };
+function parseCSV(content: string): {
+  draws: DrawRecord[];
+  report: ImportReport;
+} {
+  const report: ImportReport = {
+    totalRead: 0,
+    totalValid: 0,
+    totalDiscarded: 0,
+    discardReasons: {},
+  };
   const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
   report.totalRead = lines.length;
   const out: DrawRecord[] = [];
+  const seenContests = new Set<number>();
   const timestamp = new Date().toISOString();
 
   let start = 0;
   if (/[a-zA-Z]/.test(lines[0])) start = 1;
 
   for (let i = start; i < lines.length; i++) {
-    const cells = lines[i].split(/[,;\t]/).map((s) => s.trim()).filter(Boolean);
+    const cells = lines[i]
+      .split(/[,;\t]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (cells.length < 5) {
-      report.discardReasons["insufficient_columns"] = (report.discardReasons["insufficient_columns"] || 0) + 1;
+      report.discardReasons["insufficient_columns"] =
+        (report.discardReasons["insufficient_columns"] || 0) + 1;
       report.totalDiscarded++;
       continue;
     }
     const contest = Number(cells[0]);
     if (!Number.isFinite(contest) || contest < 1) {
-      report.discardReasons["invalid_contest_number"] = (report.discardReasons["invalid_contest_number"] || 0) + 1;
+      report.discardReasons["invalid_contest_number"] =
+        (report.discardReasons["invalid_contest_number"] || 0) + 1;
       report.totalDiscarded++;
       continue;
     }
+
+    if (seenContests.has(contest)) {
+      report.discardReasons["duplicate_contest_in_file"] =
+        (report.discardReasons["duplicate_contest_in_file"] || 0) + 1;
+      report.totalDiscarded++;
+      continue;
+    }
+
     let drawDate: string | undefined;
     let numStart = 1;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(cells[1]) || /^\d{2}\/\d{2}\/\d{4}$/.test(cells[1])) {
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(cells[1]) ||
+      /^\d{2}\/\d{2}\/\d{4}$/.test(cells[1])
+    ) {
       drawDate = normalizeDate(cells[1]);
       numStart = 2;
     }
@@ -247,22 +355,27 @@ function parseCSV(content: string): { draws: DrawRecord[], report: ImportReport 
     const valid = validateDraw(rawNums);
 
     if ("error" in valid) {
-      report.discardReasons[valid.error] = (report.discardReasons[valid.error] || 0) + 1;
+      report.discardReasons[valid.error] =
+        (report.discardReasons[valid.error] || 0) + 1;
       report.totalDiscarded++;
       continue;
     }
 
+    seenContests.add(contest);
     out.push({
       contestNumber: contest,
       drawDate,
       numbers: valid,
       source: "manual",
       syncedAt: timestamp,
-      lastCheckedAt: timestamp
+      lastCheckedAt: timestamp,
     });
     report.totalValid++;
   }
-  return { draws: out, report };
+  return {
+    draws: out.sort((a, b) => a.contestNumber - b.contestNumber),
+    report,
+  };
 }
 
 function normalizeDate(s: string): string {
