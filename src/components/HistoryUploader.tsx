@@ -218,7 +218,8 @@ export const HistoryUploader = React.forwardRef<
             )}
             {historySource === "seed" && count > 0 && (
               <span className="text-[10px] opacity-75 text-indigo-400">
-                Histórico inicial carregado da seed local.
+                ⚠️ Histórico do seed local (1999-2026, {count} concursos).
+                Recomenda-se sincronizar com API ou upload de dados atualizados.
               </span>
             )}
             {historySource === "manual" && count > 0 && (
@@ -228,7 +229,8 @@ export const HistoryUploader = React.forwardRef<
             )}
             {historySource === "api" && count > 0 && (
               <span className="text-[10px] opacity-75 text-green-400">
-                Histórico atualizado da API oficial.
+                ✓ Histórico sincronizado da API oficial ({count} concursos).
+                Dados atualizados.
               </span>
             )}
             {historySource === "database" && count > 0 && (
