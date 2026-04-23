@@ -459,13 +459,13 @@ export async function persistArbiterDecision(decision: {
     source: "arbiterMemory",
   });
   if (error) {
-    if (error.code === "PGRST205") {
-      console.warn(
-        "[STORAGE] arbiter_decisions table not found; falling back to localStorage",
-      );
-      return;
-    }
-    throw error;
+    console.error(
+      "[ARBITER] TABLE arbiter_decisions NOT FOUND - persistence DISABLED",
+    );
+    console.error("Error code:", error.code, "|", error.message);
+    throw new Error(
+      "arbiter_decisions table does not exist. Migration not applied?",
+    );
   }
 }
 
@@ -502,13 +502,13 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
     .limit(limit);
 
   if (error) {
-    if (error.code === "PGRST205") {
-      console.warn(
-        "[STORAGE] arbiter_decisions table not found; fetchArbiterDecisions returning empty history",
-      );
-      return [];
-    }
-    throw error;
+    console.error(
+      "[ARBITER] TABLE arbiter_decisions NOT FOUND - persistence DISABLED",
+    );
+    console.error("Error code:", error.code, "|", error.message);
+    throw new Error(
+      "arbiter_decisions table does not exist. Migration not applied?",
+    );
   }
   return data ?? [];
 }
@@ -526,12 +526,12 @@ export async function updateArbiterDecisionOutcome(
     .eq("id", id);
 
   if (error) {
-    if (error.code === "PGRST205") {
-      console.warn(
-        "[STORAGE] arbiter_decisions table not found; updateArbiterDecisionOutcome skipped",
-      );
-      return;
-    }
-    throw error;
+    console.error(
+      "[ARBITER] TABLE arbiter_decisions NOT FOUND - persistence DISABLED",
+    );
+    console.error("Error code:", error.code, "|", error.message);
+    throw new Error(
+      "arbiter_decisions table does not exist. Migration not applied?",
+    );
   }
 }

@@ -238,7 +238,11 @@ async function persistDecisionToDB(
   try {
     await persistArbiterDecision(record);
   } catch (error) {
-    console.warn("[ARBITER] failed to persist decision to Supabase:", error);
+    console.error(
+      "[ARBITER] CRITICAL: Failed to persist decision to Supabase:",
+      error,
+    );
+    throw error;
   }
 }
 
