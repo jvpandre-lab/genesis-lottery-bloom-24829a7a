@@ -205,12 +205,13 @@ export async function fetchRecentGenerations(
 
       if (e3) throw e3;
 
+      const batchMetrics = (batch.metrics ?? {}) as any;
       reconstructedBatches.push({
         name: batch.name as any,
         purpose: batch.purpose,
-        dominant: batch.dominant_lineage,
+        dominant: batch.dominant_lineage as any,
         avgScore: batch.score,
-        diversity: batch.metrics?.diversity ?? 0.5,
+        diversity: batchMetrics?.diversity ?? 0.5,
         games: (games ?? []).map((g: any) => ({
           numbers: g.numbers,
           lineage: g.lineage,
@@ -225,18 +226,19 @@ export async function fetchRecentGenerations(
       });
     }
 
+    const genMetrics = (gen.metrics ?? {}) as any;
     results.push({
       label: gen.label,
-      scenario: gen.scenario,
+      scenario: gen.scenario as any,
       requestedCount: gen.requested_count,
-      batches: reconstructedBatches,
+      batches: reconstructedBatches as any,
       metrics: {
-        avgScore: gen.metrics?.avgScore ?? 0,
-        avgDiversity: gen.metrics?.avgDiversity ?? 0,
-        avgCoverage: gen.metrics?.avgCoverage ?? 0,
-        territoryEntropy: gen.metrics?.territoryEntropy ?? 0,
+        avgScore: genMetrics?.avgScore ?? 0,
+        avgDiversity: genMetrics?.avgDiversity ?? 0,
+        avgCoverage: genMetrics?.avgCoverage ?? 0,
+        territoryEntropy: genMetrics?.territoryEntropy ?? 0,
       },
-    });
+    } as any);
   }
 
   return results.reverse(); // Retorna em ordem crescente de criação
@@ -486,7 +488,7 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
     rejected_lineage: string;
     chosen_score: number;
     rejected_score: number;
-    diversity_marginal: number;
+    marginal_diversity: number;
     coverage: number;
     cluster: number;
     memory_bias: number | null;
@@ -510,7 +512,7 @@ export async function fetchArbiterDecisions(limit = 400): Promise<
       "arbiter_decisions table does not exist. Migration not applied?",
     );
   }
-  return data ?? [];
+  return (data ?? []) as any;
 }
 
 export async function updateArbiterDecisionOutcome(

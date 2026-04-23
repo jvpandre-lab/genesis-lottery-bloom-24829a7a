@@ -12,10 +12,10 @@ import {
   GenerationResult,
   LineageId,
   Scenario,
+  TacticalRole,
 } from "./lotteryTypes";
 import { metaTerritoryEngine } from "./metaTerritoryEngine";
 import { scenarioEvolutionEngine } from "./scenarioEvolutionEngine";
-import { TacticalRole } from "./tacticalRoleEngine";
 
 /**
  * Contexto pré-geração produzido pelo ecossistema.

@@ -22,6 +22,7 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   fetchRecentDraws,
+  fetchRecentGenerations,
   fetchRecentRealDraws,
   isBootstrapOnly,
   persistGeneration,
