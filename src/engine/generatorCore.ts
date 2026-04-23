@@ -14,11 +14,12 @@ import {
   GenerationResult,
   LineageId,
   Scenario,
+  TacticalRole,
 } from "./lotteryTypes";
 import { buildPreGenContext, PreGenContext } from "./preGenEcosystem";
 import { defaultRNG, RNG } from "./rng";
 import { ScoreContext, scoreGame } from "./scoreEngine";
-import { TacticalRole, tacticalRoleEngine } from "./tacticalRoleEngine";
+import { tacticalRoleEngine } from "./tacticalRoleEngine";
 import { TerritoryMap } from "./territoryEngine";
 import {
   ArbiterMetrics,
@@ -64,6 +65,7 @@ export interface GenerationDiagnostics {
   ecoBrainBalance: { picksA: number; picksB: number };
   tacticalComposition: Record<TacticalRole, number>;
   brainTensionHealth: any;
+  arbiterMemorySummary: import("./lotteryTypes").ArbiterMemorySummary;
 }
 
 const BATCH_ORDER: BatchName[] = ["Alpha", "Sigma", "Delta", "Omega"];
@@ -642,6 +644,7 @@ export async function generate(
     ecoBrainBalance: { picksA: totalPicksA, picksB: totalPicksB },
     tacticalComposition,
     brainTensionHealth: null,
+    arbiterMemorySummary: arbiterMemory.getSummary(),
   };
 
   const result: GenerationResult = {

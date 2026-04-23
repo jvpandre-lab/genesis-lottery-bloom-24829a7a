@@ -26,7 +26,7 @@ describe("Backtest histórico - casos pequenos", () => {
       },
     ];
 
-    const report = backtest(generation, draws, [1, 3, 5]);
+    const report = backtest(generation as any, draws, [1, 3, 5]);
 
     expect(report.windows).toHaveLength(3);
 

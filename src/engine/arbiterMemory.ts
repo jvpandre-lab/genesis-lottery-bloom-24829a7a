@@ -173,8 +173,8 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
         value: row.rejected_score || 0,
       },
       context: {
-        batchName: row.batch_name || "Alpha",
-        scenario: row.scenario || "conservative",
+        batchName: (row.batch_name || "Alpha") as BatchName,
+        scenario: (row.scenario || "conservative") as Scenario,
         mutationRate: row.mutation_rate || 0,
         balanceA: row.balance_a || 0.5,
         balanceAAdjustment: row.metadata?.balanceAAdjustment || 0,
