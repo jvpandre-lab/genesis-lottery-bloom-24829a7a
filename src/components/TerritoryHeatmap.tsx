@@ -1,6 +1,6 @@
 import { GenerationResult, formatDezena } from "@/engine/lotteryTypes";
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 
 /** Heatmap 10x10 do espaço numérico baseado no uso global da geração. */
 export function TerritoryHeatmap({ result }: { result: GenerationResult }) {
@@ -12,16 +12,7 @@ export function TerritoryHeatmap({ result }: { result: GenerationResult }) {
   }, [result]);
   const max = Math.max(1, ...usage);
   const expected = result.batches.reduce((s, b) => s + b.games.length, 0) * 0.5;
-  const entropyLabel = Number.isFinite(result.metrics.territoryEntropy)
-    ? `${(result.metrics.territoryEntropy * 100).toFixed(1)}%`
-    : "--";
-
-  useEffect(() => {
-    console.log(
-      "[UI] TerritoryHeatmap entropy=",
-      result.metrics.territoryEntropy,
-    );
-  }, [result.metrics.territoryEntropy]);
+  const entropyLabel = `${(result.metrics.territoryEntropy * 100).toFixed(1)}%`;
 
   return (
     <div className="glass rounded-xl p-5">

@@ -16,12 +16,20 @@ export class TerritoryMap {
   }
 
   observeGame(g: Pick<Game, "numbers">) {
-    for (const n of g.numbers) this.usage[n]++;
+    for (const n of g.numbers) {
+      if (Number.isFinite(n) && n >= 0 && n < DOMAIN_SIZE) {
+        this.usage[n]++;
+      }
+    }
     this.gamesObserved++;
   }
 
   observeNumbers(nums: Dezena[]) {
-    for (const n of nums) this.usage[n]++;
+    for (const n of nums) {
+      if (Number.isFinite(n) && n >= 0 && n < DOMAIN_SIZE) {
+        this.usage[n]++;
+      }
+    }
     this.gamesObserved++;
   }
 
@@ -43,7 +51,9 @@ export class TerritoryMap {
   /** Pesos de saturação: dezenas muito usadas recebem peso menor. */
   saturationPenalty(): number[] {
     const expected = this.expectedDensity() || 1;
-    return this.usage.map((u) => Math.max(0.001, 1 - (u - expected) / (expected * 2 + 1)));
+    return this.usage.map((u) =>
+      Math.max(0.001, 1 - (u - expected) / (expected * 2 + 1)),
+    );
   }
 
   usageSnapshot(): number[] {
@@ -52,24 +62,32 @@ export class TerritoryMap {
 
   /** Entropia normalizada do uso (0=concentrado, 1=uniforme). */
   entropy(): number {
-    const total = this.usage.reduce((s, v) => s + v, 0);
-    if (total === 0) return 1;
+    const total = this.usage.reduce(
+      (s, v) => s + (Number.isFinite(v) ? v : 0),
+      0,
+    );
+    if (total === 0 || !Number.isFinite(total)) return 1;
     let h = 0;
     for (const u of this.usage) {
-      if (u === 0) continue;
+      if (!Number.isFinite(u) || u === 0) continue;
       const p = u / total;
       h -= p * Math.log(p);
     }
-    return h / Math.log(DOMAIN_SIZE);
+    const logDomain = Math.log(DOMAIN_SIZE);
+    if (!Number.isFinite(logDomain) || logDomain === 0) return 1;
+    return h / logDomain;
   }
 
   /** Identifica zonas (faixas de 10) com menor cobertura. */
   underexploredDecades(): number[] {
     const dec = new Array(10).fill(0);
-    for (let i = 0; i < DOMAIN_SIZE; i++) dec[Math.floor(i / 10)] += this.usage[i];
+    for (let i = 0; i < DOMAIN_SIZE; i++)
+      dec[Math.floor(i / 10)] += this.usage[i];
     const avg = dec.reduce((s, v) => s + v, 0) / 10;
     const result: number[] = [];
-    dec.forEach((v, i) => { if (v < avg * 0.9) result.push(i); });
+    dec.forEach((v, i) => {
+      if (v < avg * 0.9) result.push(i);
+    });
     return result;
   }
 }

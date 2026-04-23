@@ -603,12 +603,23 @@ export async function generate(
   const avgCoverage =
     allGames.reduce((s, g) => s + g.score.coverage, 0) /
     Math.max(1, allGames.length);
-  const territoryEntropy = disableEngines.territory ? 0 : territory.entropy();
-  if (!Number.isFinite(territoryEntropy)) {
-    console.error("[GENERATOR] territoryEntropy INVALID:", territoryEntropy, {
-      disableTerritory: disableEngines.territory,
-      totalGames: allGames.length,
-    });
+  const territoryEntropyRaw = disableEngines.territory
+    ? 0
+    : territory.entropy();
+  const territoryEntropy = Number.isFinite(territoryEntropyRaw)
+    ? territoryEntropyRaw
+    : 1;
+  if (!Number.isFinite(territoryEntropyRaw)) {
+    console.error(
+      "[GENERATOR] territoryEntropy INVALID:",
+      territoryEntropyRaw,
+      "-> defaulting to",
+      territoryEntropy,
+      {
+        disableTerritory: disableEngines.territory,
+        totalGames: allGames.length,
+      },
+    );
   } else {
     console.log("[GENERATOR] territoryEntropy=", territoryEntropy);
   }
