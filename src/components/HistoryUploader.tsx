@@ -181,6 +181,88 @@ export const HistoryUploader = React.forwardRef<
     }
   }
 
+  async function handleExportJSON() {
+    setBusy(true);
+    try {
+      const data = await exportDrawsAsJSON();
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lotomania-draws-${new Date().toISOString().split("T")[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Exportado",
+        description: "Histórico exportado como JSON com sucesso.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Falha na exportação",
+        description: e?.message ?? "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExportCSV() {
+    setBusy(true);
+    try {
+      const data = await exportDrawsAsCSV();
+      const blob = new Blob([data], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `lotomania-draws-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Exportado",
+        description: "Histórico exportado como CSV com sucesso.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Falha na exportação",
+        description: e?.message ?? "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSyncFullAPI() {
+    setBusy(true);
+    try {
+      const result = await syncAllDrawsFromAPI();
+      if (result.error) {
+        toast({
+          title: "Erro na sincronização",
+          description: result.error,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sincronização Completa",
+          description: `API retornou ${result.totalFromAPI} concursos. Novos: ${result.newRecordsAdded}, Duplicados: ${result.duplicatesIgnored}. Último concurso: #${result.lastContestNumber}.`,
+        });
+        setHistorySource("api");
+        setHistorySourceState("api");
+        await refresh();
+      }
+    } catch (e: any) {
+      toast({
+        title: "Falha",
+        description: e?.message ?? "Erro desconhecido",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="glass rounded-xl p-4 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3">
@@ -290,6 +372,36 @@ export const HistoryUploader = React.forwardRef<
             <Upload className="h-4 w-4" />
           )}
           <span className="ml-2">Upload Fallback</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportJSON}
+          disabled={busy || count === 0}
+          className="border-border/60 text-xs w-full sm:w-auto"
+          title="Exportar todos os concursos como JSON"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="ml-2">JSON</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportCSV}
+          disabled={busy || count === 0}
+          className="border-border/60 text-xs w-full sm:w-auto"
+          title="Exportar todos os concursos como CSV"
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4" />
+          )}
+          <span className="ml-2">CSV</span>
         </Button>
       </div>
     </div>
