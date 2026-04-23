@@ -90,6 +90,81 @@ export type Database = {
           },
         ]
       }
+      arbiter_decisions: {
+        Row: {
+          balance_a: number | null
+          batch_name: string | null
+          chosen_brain: string | null
+          chosen_lineage: string | null
+          chosen_score: number | null
+          cluster: number | null
+          coverage: number | null
+          created_at: string
+          decision: string
+          id: string
+          marginal_diversity: number | null
+          memory_bias: number | null
+          metadata: Json | null
+          mutation_rate: number | null
+          outcome_good: boolean | null
+          rejected_brain: string | null
+          rejected_lineage: string | null
+          rejected_score: number | null
+          scenario: string | null
+          scores: Json | null
+          slot: number | null
+          source: string | null
+        }
+        Insert: {
+          balance_a?: number | null
+          batch_name?: string | null
+          chosen_brain?: string | null
+          chosen_lineage?: string | null
+          chosen_score?: number | null
+          cluster?: number | null
+          coverage?: number | null
+          created_at?: string
+          decision: string
+          id: string
+          marginal_diversity?: number | null
+          memory_bias?: number | null
+          metadata?: Json | null
+          mutation_rate?: number | null
+          outcome_good?: boolean | null
+          rejected_brain?: string | null
+          rejected_lineage?: string | null
+          rejected_score?: number | null
+          scenario?: string | null
+          scores?: Json | null
+          slot?: number | null
+          source?: string | null
+        }
+        Update: {
+          balance_a?: number | null
+          batch_name?: string | null
+          chosen_brain?: string | null
+          chosen_lineage?: string | null
+          chosen_score?: number | null
+          cluster?: number | null
+          coverage?: number | null
+          created_at?: string
+          decision?: string
+          id?: string
+          marginal_diversity?: number | null
+          memory_bias?: number | null
+          metadata?: Json | null
+          mutation_rate?: number | null
+          outcome_good?: boolean | null
+          rejected_brain?: string | null
+          rejected_lineage?: string | null
+          rejected_score?: number | null
+          scenario?: string | null
+          scores?: Json | null
+          slot?: number | null
+          source?: string | null
+        }
+        Relationships: []
+      }
       generation_batches: {
         Row: {
           created_at: string

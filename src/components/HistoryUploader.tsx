@@ -7,13 +7,13 @@ import {
   HistorySource,
   parseDrawsFile,
   setHistorySource,
-  syncDraws,
 } from "@/services/contestService";
 import {
   countDraws,
   fetchRecentDraws,
   upsertDraws,
 } from "@/services/storageService";
+import { importHistoricalDraws } from "@/services/dataIngestService";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Database, FileWarning, Loader2, Upload } from "lucide-react";
@@ -64,98 +64,60 @@ export const HistoryUploader = React.forwardRef<
     (async () => {
       const currentCount = await refresh();
       if (currentCount === 0) {
-        setBusy(true);
-        try {
-          const report = await syncDraws();
-          if (report.status === "success") {
-            const source = report.source ?? "database";
-            if (source !== "database") {
-              setHistorySource(source);
-            }
-            setHistorySourceState(source as HistorySource);
-
-            // Log detalhado da sincronização inicial
-            console.log(`[HistoryUploader] Sync inicial bem-sucedido:`, {
-              source,
-              newRecords: report.newRecordsAdded,
-              duplicates: report.recordsIgnoredDuplicate,
-              lastContestNumber: report.lastContestNumber,
-            });
-
-            toast({
-              title: "Histórico inicial carregado",
-              description:
-                source === "seed"
-                  ? `Seed local carregada. ${report.newRecordsAdded} concursos de 1999 a 2026.`
-                  : `${report.newRecordsAdded} concursos da API oficial (até #${report.lastContestNumber}).`,
-            });
-          } else {
-            toast({
-              title: "Falha ao inicializar histórico",
-              description:
-                report.error ||
-                "Não foi possível carregar o histórico inicial.",
-              variant: "destructive",
-            });
-          }
-        } catch (e: any) {
-          toast({
-            title: "Falha ao inicializar histórico",
-            description: e?.message || "Erro desconhecido",
-            variant: "destructive",
-          });
-        } finally {
-          setBusy(false);
-          await refresh();
-        }
+        await runImport(true);
       }
     })();
   }, []);
 
-  async function handleSyncApi() {
+  async function runImport(isInitial: boolean) {
     setBusy(true);
     try {
-      const report = await syncDraws();
-      if (report.status === "success") {
-        console.log(
-          `[HistoryUploader] Sync manual - Novos: ${report.newRecordsAdded}, Duplicados: ${report.recordsIgnoredDuplicate}, Último concurso: #${report.lastContestNumber}`,
-        );
+      const result = await importHistoricalDraws();
+      console.log("[HistoryUploader] importHistoricalDraws =>", result);
 
+      if (!result.ok) {
         toast({
-          title: "Sincronização OK",
-          description: `${report.newRecordsAdded} novos. ${report.recordsIgnoredDuplicate} duplicados. Último: #${report.lastContestNumber}.`,
+          title: "Falha ao importar da API",
+          description:
+            (result.error ? `${result.error}. ` : "") +
+            "Sugestão: use Upload Fallback.",
+          variant: "destructive",
         });
-      } else if (report.status === "fallback_banco") {
-        console.log(
-          `[HistoryUploader] Fallback acionado - usando dados existentes`,
-        );
+        return;
+      }
 
+      // Atualiza badge de origem
+      setHistorySource("api");
+      setHistorySourceState("api");
+
+      if (result.inserted === 0) {
         toast({
-          title: "Fallback Automático",
-          description: "API indisponível. Operando com dados do banco atual.",
+          title: "Nenhum concurso novo encontrado",
+          description: `Todos já estavam na base. Último: #${result.lastContestNumber ?? "—"}.`,
         });
       } else {
         toast({
-          title: "Erro Crítico",
-          description:
-            report.error || "A API e o Banco falharam simultaneamente.",
-          variant: "destructive",
+          title: isInitial ? "Histórico inicial carregado" : "Importação concluída",
+          description: `${result.totalFetched} lidos • ${result.inserted} novos • ${result.duplicates} duplicados • Último: #${result.lastContestNumber ?? "—"}.`,
         });
       }
-      if (report.source) {
-        setHistorySource(report.source);
-        setHistorySourceState(report.source as HistorySource);
-      }
-      await refresh();
     } catch (e: any) {
+      console.error("[HistoryUploader] erro inesperado:", e);
       toast({
-        title: "Falha de Sincronização",
-        description: e.message,
+        title: "Falha ao importar da API",
+        description:
+          (e?.message || "Erro inesperado") +
+          ". Sugestão: use Upload Fallback.",
         variant: "destructive",
       });
     } finally {
       setBusy(false);
+      await refresh();
     }
+  }
+
+  async function handleSyncApi() {
+    await runImport(false);
   }
 
   async function handleFile(file: File) {
