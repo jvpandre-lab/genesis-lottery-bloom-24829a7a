@@ -178,7 +178,12 @@ export async function fetchRecentGenerations(
       scenario: gen.scenario,
       requestedCount: gen.requested_count,
       batches: reconstructedBatches,
-      metrics: gen.metrics ?? {},
+      metrics: {
+        avgScore: gen.metrics?.avgScore ?? 0,
+        avgDiversity: gen.metrics?.avgDiversity ?? 0,
+        avgCoverage: gen.metrics?.avgCoverage ?? 0,
+        territoryEntropy: gen.metrics?.territoryEntropy ?? 0,
+      },
     });
   }
 

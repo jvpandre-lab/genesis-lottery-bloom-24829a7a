@@ -48,6 +48,10 @@ const Index = () => {
   const [diag, setDiag] = useState<GenerationDiagnostics | null>(null);
   const [draws, setDraws] = useState<number>(0);
 
+  function formatPercent(value: number | null | undefined): string {
+    return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "--";
+  }
+
   async function handleGenerate() {
     setBusy(true);
     try {
@@ -78,6 +82,10 @@ const Index = () => {
       });
       const { diagnostics, ...gen } = res;
       setResult(gen as GenerationResult);
+      console.log(
+        "[UI] generated territoryEntropy=",
+        (gen as GenerationResult).metrics?.territoryEntropy,
+      );
       setDiag(diagnostics);
       try {
         await persistGeneration(gen as GenerationResult);
@@ -280,7 +288,7 @@ const Index = () => {
               />
               <Kpi
                 label="Entropia territorial"
-                value={`${(result.metrics.territoryEntropy * 100).toFixed(1)}%`}
+                value={formatPercent(result.metrics.territoryEntropy)}
               />
             </div>
 

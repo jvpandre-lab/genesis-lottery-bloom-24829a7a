@@ -604,6 +604,14 @@ export async function generate(
     allGames.reduce((s, g) => s + g.score.coverage, 0) /
     Math.max(1, allGames.length);
   const territoryEntropy = disableEngines.territory ? 0 : territory.entropy();
+  if (!Number.isFinite(territoryEntropy)) {
+    console.error("[GENERATOR] territoryEntropy INVALID:", territoryEntropy, {
+      disableTerritory: disableEngines.territory,
+      totalGames: allGames.length,
+    });
+  } else {
+    console.log("[GENERATOR] territoryEntropy=", territoryEntropy);
+  }
 
   const overallObjectiveScore =
     Object.values(batchObjectiveScores).reduce((s, v) => s + v, 0) /
