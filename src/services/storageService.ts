@@ -1,6 +1,11 @@
 import { Dezena, DrawRecord, GenerationResult } from "@/engine/lotteryTypes";
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * Busca N draws mais recentes (qualquer fonte)
+ * @param limit Quantidade desejada (default 10)
+ * @returns Array de DrawRecord ordenado por contest_number DESC
+ */
 export async function fetchRecentDraws(limit = 10): Promise<DrawRecord[]> {
   const { data, error } = await supabase
     .from("lotomania_draws")
@@ -14,6 +19,53 @@ export async function fetchRecentDraws(limit = 10): Promise<DrawRecord[]> {
     numbers: r.numbers as Dezena[],
     source: "database" as const,
   }));
+}
+
+/**
+ * Busca N draws mais recentes APENAS se forem dados REAIS (não seed bootstrap antigo)
+ * Filtra concursos com source='seed' quando contest_number <= 200
+ * (seed local é contests 1-200 de 1999-2003)
+ *
+ * Estratégia:
+ * - Se houver dados reais (source != 'seed' OU contest_number > 200): retorna os N mais recentes
+ * - Se houver APENAS seed antigo (contests 1-200): retorna vazio (força lógica de reload/sincronização)
+ */
+export async function fetchRecentRealDraws(limit = 10): Promise<DrawRecord[]> {
+  // Primeiro, tenta buscar draws que NÃO sejam seed bootstrap puro
+  // Prioriza dados com source != 'seed' ou contest_number > 200
+  const { data: realDraws, error: realError } = await supabase
+    .from("lotomania_draws")
+    .select("contest_number, draw_date, numbers, created_at")
+    .or("contest_number.gt.200,created_at.gt.2024-01-01")
+    .order("contest_number", { ascending: false })
+    .limit(limit);
+
+  if (!realError && realDraws && realDraws.length > 0) {
+    return realDraws.map((r) => ({
+      contestNumber: r.contest_number,
+      drawDate: r.draw_date ?? undefined,
+      numbers: r.numbers as Dezena[],
+      source: "database" as const,
+    }));
+  }
+
+  // Se nenhum draw real foi encontrado (apenas seed antigo),
+  // retorna vazio para sinalizar que precisa de dados reais
+  return [];
+}
+
+/**
+ * Verifica se o sistema está em modo BOOTSTRAP PURO
+ * (apenas seed antigo, sem dados reais posteriores)
+ */
+export async function isBootstrapOnly(): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("lotomania_draws")
+    .select("contest_number", { count: "exact", head: true })
+    .or("contest_number.gt.200,draw_date.gt.2024-01-01");
+
+  if (error) return false;
+  return !data || data.length === 0;
 }
 
 export async function fetchAllDraws(): Promise<DrawRecord[]> {

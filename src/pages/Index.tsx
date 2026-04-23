@@ -56,10 +56,17 @@ const Index = () => {
   async function handleGenerate() {
     setBusy(true);
     try {
+      // Busca os draws mais recentes para contexto de geração
+      // fetchRecentDraws(8) obtém os 8 mais recentes por contest_number DESC
+      // Isso inclui seed bootstrap antigo se apenas seed estiver carregado
+      // Para evitar mistura: usar fetchRecentRealDraws() se quiser apenas dados reais
       let recent: any[] = [];
       let recentGens: any[] = [];
       try {
         recent = await fetchRecentDraws(8);
+        // NOTA: Se quiser separar dados reais de bootstrap, use:
+        // const realRecent = await fetchRecentRealDraws(8);
+        // const finalRecent = realRecent.length > 0 ? realRecent : recent;
       } catch {}
       try {
         recentGens = await fetchRecentGenerations(10);

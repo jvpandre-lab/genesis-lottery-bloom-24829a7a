@@ -92,6 +92,13 @@ async function fetchSeedDraws(): Promise<DrawRecord[]> {
   return out.sort((a, b) => a.contestNumber - b.contestNumber);
 }
 
+/**
+ * BOOTSTRAP FALLBACK: Carrega seed histórico antigo (1999-2003) apenas como último recurso
+ * quando banco está vazio E API falha.
+ *
+ * IMPORTANTE: Seed é apenas base mínima, NÃO deve ser usado como contexto recente em geração
+ * quando dados reais estiverem disponíveis. Use fetchRecentRealDraws() para evitar mistura.
+ */
 async function applySeedFallback(): Promise<SyncReport> {
   const report: SyncReport = {
     status: "success",
