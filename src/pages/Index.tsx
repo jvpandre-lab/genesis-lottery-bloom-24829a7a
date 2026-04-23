@@ -5,6 +5,7 @@ import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { EcosystemDashboard } from "@/components/EcosystemDashboard";
 import { EvolutionaryBacktestPanel } from "@/components/EvolutionaryBacktestPanel";
 import { EvolutionTimeline } from "@/components/EvolutionTimeline";
+import { HistoryHealthIndicator } from "@/components/HistoryHealthIndicator";
 import { HistoryUploader } from "@/components/HistoryUploader";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { TacticalLotePanel } from "@/components/TacticalLotePanel";

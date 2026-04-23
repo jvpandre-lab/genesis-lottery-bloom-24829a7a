@@ -1,5 +1,5 @@
-import { contestService } from "./contestService";
-import { storageService } from "./storageService";
+import { getHistorySource } from "./contestService";
+import { countDraws } from "./storageService";
 
 export interface HistoryHealth {
   totalCount: number;
@@ -13,8 +13,8 @@ export interface HistoryHealth {
 export const healthService = {
   async getHistoryHealth(): Promise<HistoryHealth> {
     try {
-      const totalCount = await storageService.countDraws();
-      const lastSource = contestService.getHistorySource();
+      const totalCount = await countDraws();
+      const lastSource = getHistorySource();
       const lastUpdated = new Date().toISOString();
 
       let classification: "VAZIO" | "CRÍTICO" | "BÁSICO" | "BOM" | "FORTE";
