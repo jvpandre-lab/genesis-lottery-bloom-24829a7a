@@ -629,6 +629,13 @@ export const arbiterMemory = {
     const DECAY_HALF = 20;    // meia-vida em decisões (peso cai 50% a cada 20 posições)
     const MIN_OCCURRENCE = 2; // exige pelo menos 2 decisões com o mesmo padrão
 
+    // BUG #2 DOCUMENTADO: Cenário "hybrid" consome decisões de TODOS os cenários.
+    // Fundamentação: aumenta massa de aprendizado disponível para o cenário mais usado.
+    // Risco consciente: pode introduzir ruído cross-cenário (ex: padrões de "aggressive"
+    // influenciando geração "hybrid"). Protegido parcialmente pelo MIN_OCCURRENCE=2 e
+    // decay temporal. Manter sob observação — se metaBias gerar instabilidade em
+    // cenário hybrid, restringir para d.context.scenario === "hybrid" apenas.
+
     // Filtrar decisões com outcome real e numbers disponíveis
     const eligible = state.decisions
       .filter(d =>
@@ -637,6 +644,13 @@ export const arbiterMemory = {
         (scenario === "hybrid" || d.context.scenario === scenario)
       )
       .slice(-WINDOW);
+
+    console.log(
+      `[META BIAS FILTER]\n` +
+      `  scenario:        ${scenario}\n` +
+      `  crossScenario:   ${scenario === "hybrid" ? "SIM — hybrid usa decisões de todos os cenários" : "NÃO — filtrado por cenário"}\n` +
+      `  eligible:        ${eligible.length} decisões com outcomeQuality`
+    );
 
     if (eligible.length === 0) {
       return {
@@ -816,23 +830,40 @@ export const arbiterMemory = {
     // previous contest (target - 1). Generation targets "next contest", but
     // real conferral typically uses the latest available draw.
     const target = decision.context.targetContestNumber;
-    const accepted =
-      target != null &&
-      (contestNumber === target || contestNumber === target - 1);
+    const isExactMatch = target != null && contestNumber === target;
+    const isTargetMinusOne = target != null && contestNumber === target - 1;
+    const accepted = isExactMatch || isTargetMinusOne;
 
-    console.log(
-      `[ARBITER LEARNING CHECK]\n` +
-      `  decisionId:           ${decisionId}\n` +
-      `  targetContestNumber:  ${target}\n` +
-      `  testedContestNumber:  ${contestNumber}\n` +
-      `  accepted:             ${accepted}\n` +
-      `  reason:               ${accepted
-        ? "match (target or target-1)"
-        : target == null
-          ? "no target set"
-          : "contest mismatch (out of accepted window)"
-      }`,
-    );
+    // BUG #3 FIX: Log diferenciado por modo de aceitação/bloqueio
+    if (accepted) {
+      const mode = isExactMatch ? "exact-match" : "target-minus-one-accepted";
+      console.log(
+        `[ARBITER LEARNING CHECK]\n` +
+        `  mode:                  ${mode}\n` +
+        `  decisionId:            ${decisionId}\n` +
+        `  targetContestNumber:   ${target}\n` +
+        `  testedContestNumber:   ${contestNumber}\n` +
+        `  accepted:              true\n` +
+        `  reason:                ${isExactMatch
+          ? "conferência exata contra o concurso alvo"
+          : "conferência contra último concurso disponível (target-1)"
+        }`
+      );
+    } else {
+      const mode = target == null ? "no-target-set" : "blocked-simulated";
+      console.log(
+        `[ARBITER LEARNING CHECK]\n` +
+        `  mode:                  ${mode}\n` +
+        `  decisionId:            ${decisionId}\n` +
+        `  targetContestNumber:   ${target ?? "null"}\n` +
+        `  testedContestNumber:   ${contestNumber}\n` +
+        `  accepted:              false\n` +
+        `  reason:                ${target == null
+          ? "decisionId sem targetContestNumber registrado"
+          : "concurso fora da janela permitida (simulação ou defasagem excessiva bloqueada)"
+        }`
+      );
+    }
 
     if (!accepted) return { applied: false, reason: "blocked" };
 

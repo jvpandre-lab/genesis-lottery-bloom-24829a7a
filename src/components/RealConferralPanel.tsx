@@ -136,28 +136,53 @@ export function RealConferralPanel({ currentResult }: RealConferralPanelProps) {
                 }
             }
 
+            // BUG #1 FIX: Log estruturado com razão explícita para ausência de decisionId
+            const allNoDecision = withoutDecisionId === allGames.length;
             console.log(
                 `[CONFERENCE RESULT]\n` +
-                `  learned: ${learnedCount}\n` +
-                `  ignored: ${ignoredCount}\n` +
-                `  total:   ${allGames.length}\n` +
-                `  breakdown: { noDecisionId: ${withoutDecisionId}, duplicate: ${duplicateCount}, blocked: ${blockedCount} }`,
+                `  learned:         ${learnedCount}\n` +
+                `  ignored:         ${ignoredCount}\n` +
+                `  total:           ${allGames.length}\n` +
+                `  noDecisionId:    ${withoutDecisionId}${allNoDecision ? " ⚠️ TODOS SEM decisionId — geração não rastreável, aprendizado NÃO aplicado" : ""}\n` +
+                `  duplicate:       ${duplicateCount}\n` +
+                `  blocked:         ${blockedCount}`,
             );
 
-            const extras: string[] = [];
-            if (withoutDecisionId > 0) extras.push(`sem decisionId: ${withoutDecisionId}`);
-            if (duplicateCount > 0) extras.push(`duplicados: ${duplicateCount}`);
-            if (blockedCount > 0) extras.push(`bloqueados: ${blockedCount}`);
+            // BUG #1 FIX: Status diferenciado quando aprendizado é zero por falta de rastreabilidade
+            if (learnedCount === 0 && withoutDecisionId > 0) {
+                const totalTraceable = allGames.length - withoutDecisionId;
+                const msg = allNoDecision
+                    ? `⚠️ Esta geração não possui decisionId rastreável. Aprendizado não aplicado para nenhum jogo. ` +
+                      `Verifique se a geração foi feita com Dois Cérebros (twoBrains=true). ` +
+                      `Concurso ${latestDraw.contestNumber}. Jogos auditados: ${allGames.length}.`
+                    : `⚠️ Conferência parcial (fonte: ${sourceLabel}). Concurso ${latestDraw.contestNumber}. ` +
+                      `Jogos: ${allGames.length}. Rastreáveis: ${totalTraceable}. ` +
+                      `Sem decisionId: ${withoutDecisionId}. Aprendidos: ${learnedCount}. ` +
+                      (duplicateCount > 0 ? `Duplicados: ${duplicateCount}. ` : "") +
+                      (blockedCount > 0 ? `Bloqueados: ${blockedCount}.` : "");
 
-            setConferralStatus(
-                `✅ Conferência concluída (fonte: ${sourceLabel}). Concurso ${latestDraw.contestNumber}. ` +
-                    `Jogos: ${allGames.length}. Aprendidos: ${learnedCount}. Ignorados: ${ignoredCount}.` +
-                    (extras.length > 0 ? ` (${extras.join(", ")})` : ""),
-            );
-            toast({
-                title: "Conferência Executada",
-                description: `Hits calculados sobre o concurso ${latestDraw.contestNumber}.`,
-            });
+                setConferralStatus(msg);
+                toast({
+                    title: "Conferência sem Aprendizado",
+                    description: `Nenhum jogo rastreável encontrado para o concurso ${latestDraw.contestNumber}.`,
+                    variant: "destructive",
+                });
+            } else {
+                const extras: string[] = [];
+                if (withoutDecisionId > 0) extras.push(`sem decisionId: ${withoutDecisionId}`);
+                if (duplicateCount > 0) extras.push(`duplicados: ${duplicateCount}`);
+                if (blockedCount > 0) extras.push(`bloqueados: ${blockedCount}`);
+
+                setConferralStatus(
+                    `✅ Conferência concluída (fonte: ${sourceLabel}). Concurso ${latestDraw.contestNumber}. ` +
+                        `Jogos: ${allGames.length}. Aprendidos: ${learnedCount}. Ignorados: ${ignoredCount}.` +
+                        (extras.length > 0 ? ` (${extras.join(", ")})` : ""),
+                );
+                toast({
+                    title: "Conferência Executada",
+                    description: `Hits calculados sobre o concurso ${latestDraw.contestNumber}.`,
+                });
+            }
         } catch (e: any) {
             toast({
                 title: "Falha",
