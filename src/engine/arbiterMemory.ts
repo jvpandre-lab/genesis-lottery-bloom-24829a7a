@@ -3,7 +3,7 @@ import {
   persistArbiterDecision,
   updateArbiterDecisionOutcome,
 } from "@/services/storageService";
-import { BatchName, LineageId, Scenario, SystemHealth, AdaptiveInstinct, InstinctMode } from "./lotteryTypes";
+import { BatchName, LineageId, Scenario, SystemHealth, AdaptiveInstinct, InstinctMode, MetaBias, StructuralPattern } from "./lotteryTypes";
 
 const STORAGE_KEY = "arbiterMemory.v1";
 const MAX_DECISIONS = 400;
@@ -612,6 +612,169 @@ export const arbiterMemory = {
     }
 
     return instinctRuntime.smoothedInstinct;
+  },
+
+  /**
+   * META-APRENDIZADO: extrai padrões estruturais de decisões GOOD/BAD
+   * e devolve MetaBias para refinar o score de candidatos futuros.
+   *
+   * Proteções Anti-Overfitting:
+   *  - ocorrência > 1 obrigatória para padrão entrar no MetaBias
+   *  - decay temporal: decisões mais antigas pesam menos
+   *  - impacto máximo clampeado (nunca domina o score)
+   *  - padrões isolados são ignorados
+   */
+  getMetaBias(scenario: Scenario): MetaBias {
+    const WINDOW = 80;        // janela de decisões recentes
+    const DECAY_HALF = 20;    // meia-vida em decisões (peso cai 50% a cada 20 posições)
+    const MIN_OCCURRENCE = 2; // exige pelo menos 2 decisões com o mesmo padrão
+
+    // Filtrar decisões com outcome real e numbers disponíveis
+    const eligible = state.decisions
+      .filter(d =>
+        d.outcomeQuality !== undefined &&
+        d.chosen.numbers && d.chosen.numbers.length > 0 &&
+        (scenario === "hybrid" || d.context.scenario === scenario)
+      )
+      .slice(-WINDOW);
+
+    if (eligible.length === 0) {
+      return {
+        preferredPatterns: [],
+        avoidedPatterns: [],
+        diversityPreference: 0,
+        clusterPenaltyLevel: 0,
+        repetitionPenaltyLevel: 0,
+      };
+    }
+
+    // ── PARTE 1: Extração de Features ─────────────────────────────────────
+    interface WeightedPattern {
+      pattern: StructuralPattern;
+      weight: number;
+      quality: "good" | "neutral" | "bad";
+    }
+
+    const extractPattern = (numbers: number[], lineage: string, positionFromEnd: number): StructuralPattern => {
+      // Distribuição territorial por zona Z0..Z9
+      const zoneCounts: Record<string, number> = {};
+      for (const n of numbers) {
+        const z = n === 0 ? "Z0" : "Z" + Math.floor(Math.min(99, n) / 10);
+        zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+      }
+      const total = numbers.length || 1;
+      const territoryProfile: Record<string, number> = {};
+      for (const z in zoneCounts) territoryProfile[z] = zoneCounts[z] / total;
+
+      // Cluster score: variância da concentração por zona (alta variância = mais cluster)
+      const zoneValues = Object.values(zoneCounts);
+      const avgZone = zoneValues.reduce((s, v) => s + v, 0) / Math.max(1, zoneValues.length);
+      const variance = zoneValues.reduce((s, v) => s + (v - avgZone) ** 2, 0) / Math.max(1, zoneValues.length);
+      const clusterScore = Math.min(1, variance / 25); // normalizar: máx teórico ~25
+
+      // Diversity score: quanto os números estão bem distribuídos (entropia simplificada)
+      const maxZone = Math.max(...(zoneValues.length > 0 ? zoneValues : [1]));
+      const diversityScore = 1 - (maxZone / total); // zona mais densa diminui diversidade
+
+      // Repetition level: proporção de números nas faixas 00-09 e 90-99 (bordas)
+      const edgeNums = numbers.filter(n => n <= 9 || n >= 90).length;
+      const repetitionLevel = edgeNums / total;
+
+      // Padrão de dispersão
+      const maxConc = Math.max(...(Object.values(zoneCounts).length > 0 ? Object.values(zoneCounts) : [0]));
+      const dispersionPattern: "espalhado" | "concentrado" | "misto" =
+        maxConc > 8 ? "concentrado" : maxConc < 5 ? "espalhado" : "misto";
+
+      return { territoryProfile, clusterScore, diversityScore, repetitionLevel, lineage, dispersionPattern };
+    };
+
+    const weighted: WeightedPattern[] = eligible.map((d, idx) => {
+      const posFromEnd = eligible.length - idx;
+      const weight = Math.exp(-posFromEnd / DECAY_HALF); // decay exponencial
+      const pattern = extractPattern(
+        d.chosen.numbers ?? [],
+        d.chosen.lineage,
+        posFromEnd
+      );
+      return { pattern, weight, quality: d.outcomeQuality! };
+    });
+
+    // ── PARTE 2: Agrupamento GOOD/BAD com ocorrência mínima ───────────────
+    const goodItems = weighted.filter(w => w.quality === "good");
+    const badItems = weighted.filter(w => w.quality === "bad");
+
+    // Agrupa por dispersionPattern × lineage (features discretizáveis)
+    function groupBySignature(items: WeightedPattern[]): Map<string, WeightedPattern[]> {
+      const map = new Map<string, WeightedPattern[]>();
+      for (const item of items) {
+        const sig = `${item.pattern.dispersionPattern}|${item.pattern.lineage}`;
+        if (!map.has(sig)) map.set(sig, []);
+        map.get(sig)!.push(item);
+      }
+      return map;
+    }
+
+    function avgPattern(items: WeightedPattern[]): StructuralPattern {
+      const totalW = items.reduce((s, i) => s + i.weight, 0) || 1;
+      const cluster = items.reduce((s, i) => s + i.pattern.clusterScore * i.weight, 0) / totalW;
+      const diversity = items.reduce((s, i) => s + i.pattern.diversityScore * i.weight, 0) / totalW;
+      const repetition = items.reduce((s, i) => s + i.pattern.repetitionLevel * i.weight, 0) / totalW;
+      // Território médio ponderado
+      const terrSum: Record<string, number> = {};
+      for (const item of items) {
+        for (const z in item.pattern.territoryProfile) {
+          terrSum[z] = (terrSum[z] || 0) + item.pattern.territoryProfile[z] * item.weight;
+        }
+      }
+      const terrAvg: Record<string, number> = {};
+      for (const z in terrSum) terrAvg[z] = terrSum[z] / totalW;
+      const dominant = items[0].pattern;
+      return {
+        territoryProfile: terrAvg,
+        clusterScore: cluster,
+        diversityScore: diversity,
+        repetitionLevel: repetition,
+        lineage: dominant.lineage,
+        dispersionPattern: dominant.dispersionPattern,
+      };
+    }
+
+    const goodGroups = groupBySignature(goodItems);
+    const badGroups = groupBySignature(badItems);
+
+    const preferredPatterns: StructuralPattern[] = [];
+    const avoidedPatterns: StructuralPattern[] = [];
+
+    for (const [, items] of goodGroups) {
+      if (items.length >= MIN_OCCURRENCE) preferredPatterns.push(avgPattern(items));
+    }
+    for (const [, items] of badGroups) {
+      if (items.length >= MIN_OCCURRENCE) avoidedPatterns.push(avgPattern(items));
+    }
+
+    // ── PARTE 3: Derivar Preferências Globais ─────────────────────────────
+    const goodDiversity = goodItems.length > 0 ? goodItems.reduce((s, i) => s + i.pattern.diversityScore, 0) / goodItems.length : 0.5;
+    const badDiversity = badItems.length > 0 ? badItems.reduce((s, i) => s + i.pattern.diversityScore, 0) / badItems.length : 0.5;
+    const diversityPreference = Math.max(-1, Math.min(1, (goodDiversity - badDiversity) * 2));
+
+    const badCluster = badItems.length > 0 ? badItems.reduce((s, i) => s + i.pattern.clusterScore, 0) / badItems.length : 0;
+    const clusterPenaltyLevel = Math.min(1, badCluster * 1.2); // amplifica levemente
+
+    const badRepetition = badItems.length > 0 ? badItems.reduce((s, i) => s + i.pattern.repetitionLevel, 0) / badItems.length : 0;
+    const repetitionPenaltyLevel = Math.min(1, badRepetition * 1.2);
+
+    console.log(
+      `[META LEARNING]\n` +
+      `  sampleWindow:     ${eligible.length}\n` +
+      `  patternsDetected: ${goodItems.length + badItems.length}\n` +
+      `  goodPatterns:     ${preferredPatterns.length} recorrentes\n` +
+      `  badPatterns:      ${avoidedPatterns.length} recorrentes\n` +
+      `  diversityPref:    ${diversityPreference.toFixed(2)}\n` +
+      `  clusterPenalty:   ${clusterPenaltyLevel.toFixed(2)}\n` +
+      `  repetitionPenalty:${repetitionPenaltyLevel.toFixed(2)}`
+    );
+
+    return { preferredPatterns, avoidedPatterns, diversityPreference, clusterPenaltyLevel, repetitionPenaltyLevel };
   },
 
   /**

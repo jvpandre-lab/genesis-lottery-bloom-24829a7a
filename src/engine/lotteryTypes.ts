@@ -169,6 +169,25 @@ export interface AdaptiveInstinct {
   explorationWeight: number;
 }
 
+/** Features estruturais extraidas de uma decisão com outcome_quality. */
+export interface StructuralPattern {
+  territoryProfile: Record<string, number>; // proporção por zona Z0..Z9 (0..1)
+  clusterScore: number;    // 0 = muito disperso, 1 = muito concentrado
+  diversityScore: number;  // 0..1
+  repetitionLevel: number; // 0..1 (quante dezenas repetidas de ciclos recentes)
+  lineage: string;
+  dispersionPattern: "espalhado" | "concentrado" | "misto";
+}
+
+/** Bias derivado de padrões estruturais aprendidos (meta-learning). */
+export interface MetaBias {
+  preferredPatterns: StructuralPattern[]; // padrões GOOD recorrentes
+  avoidedPatterns: StructuralPattern[];   // padrões BAD recorrentes
+  diversityPreference: number;    // [-1..1] positivo = prefere mais diverso
+  clusterPenaltyLevel: number;    // [0..1]  quão forte penalizar clusters
+  repetitionPenaltyLevel: number; // [0..1]  quão forte penalizar repetições
+}
+
 export interface GameMetrics {
   evenCount: number;
   oddCount: number;

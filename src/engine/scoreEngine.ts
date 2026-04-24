@@ -1,4 +1,4 @@
-import { Dezena, ScoreBreakdown, GameMetrics, LineageId, StructuralBias, AdaptiveInstinct } from "./lotteryTypes";
+import { Dezena, ScoreBreakdown, GameMetrics, LineageId, StructuralBias, AdaptiveInstinct, MetaBias } from "./lotteryTypes";
 import { coverageScore, gridCoverageScore, distributionScore, clusterPenalty, territoryScore, computeMetrics } from "./coverageEngine";
 import { antiBiasScore, recencyPenalty } from "./antiBiasEngine";
 import { diversityVsSet } from "./diversityEngine";
@@ -10,6 +10,7 @@ export interface ScoreContext {
   lineage: LineageId;
   structuralBias?: StructuralBias; // pressões contextuais mapeadas pela experiência do Arbiter
   adaptiveInstinct?: AdaptiveInstinct; // limitadores orgânicos e impulsos fisiológicos
+  metaBias?: MetaBias; // refinamento por padrões estruturais aprendidos (meta-learning)
 }
 
 /** Pesos por linhagem — cada linhagem otimiza diferentes dimensões. */
@@ -78,6 +79,37 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
     }
   }
 
+  // 3. Aplicação do META-APRENDIZADO
+  let metaModifier = 0;
+  if (ctx.metaBias) {
+    const { preferredPatterns, avoidedPatterns, diversityPreference, clusterPenaltyLevel } = ctx.metaBias;
+
+    // Recompilar dispersionPattern do candidate atual
+    const zoneCounts: Record<string, number> = {};
+    for (const num of numbers) {
+      const z = num === 0 ? "Z0" : "Z" + Math.floor(Math.min(99, Math.max(0, num)) / 10);
+      zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+    }
+    let maxConc = 0;
+    for (const k in zoneCounts) { if (zoneCounts[k] > maxConc) maxConc = zoneCounts[k]; }
+    const dispersionPattern = maxConc > 8 ? "concentrado" : maxConc < 5 ? "espalhado" : "misto";
+
+    // Match de assinatura com as preferências históricas
+    const matchGood = preferredPatterns.some(p => p.dispersionPattern === dispersionPattern && p.lineage === ctx.lineage);
+    const matchBad = avoidedPatterns.some(p => p.dispersionPattern === dispersionPattern && p.lineage === ctx.lineage);
+
+    if (matchGood) metaModifier += 0.05;
+    if (matchBad) metaModifier -= 0.05;
+
+    // Aplicar ajustes baseados em macro-learning
+    if (clusterPenaltyLevel > 0 && maxConc > 8) {
+      cl = Math.max(0, cl - (clusterPenaltyLevel * 0.15));
+    }
+    if (diversityPreference > -1) {
+      div = Math.min(1.0, div * (1 + diversityPreference * 0.15));
+    }
+  }
+
   const w = weightsFor(ctx.lineage);
   const total =
     cov * w.coverage +
@@ -86,7 +118,8 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
     terr * w.territory +
     ab * w.antiBias +
     cl * w.cluster +
-    structuralAffinity;
+    structuralAffinity +
+    metaModifier;
 
   return {
     coverage: cov,

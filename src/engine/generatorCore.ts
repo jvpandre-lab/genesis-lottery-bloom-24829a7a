@@ -236,6 +236,7 @@ export async function generate(
 
   const structuralBias = arbiterMemory.getStructuralBias(scenario);
   const adaptiveInstinct = arbiterMemory.getAdaptiveInstinct(input.targetContestNumber ?? undefined);
+  const metaBias = arbiterMemory.getMetaBias(scenario);
 
   // ── Pressão adaptativa ─────────────────────────────────────────────────
   globalPressure.load();
@@ -378,6 +379,7 @@ export async function generate(
         recentDraws: recent as Dezena[][],
         structuralBias,
         adaptiveInstinct,
+        metaBias,
         // P4 FIX: passa preGenWeightModifiers para o GA via ctx
         preGenWeightModifiers: disableEngines.preGenEcosystem
           ? undefined
@@ -448,6 +450,8 @@ export async function generate(
             ...ctxBase,
             lineage: p.lineage,
             reference: updatedRef,
+            adaptiveInstinct,
+            metaBias,
           };
           const retry = evolve(p.lineage, retryCtx, {
             populationSize: 28,
