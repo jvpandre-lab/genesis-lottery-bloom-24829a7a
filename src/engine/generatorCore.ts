@@ -238,6 +238,20 @@ export async function generate(
   const adaptiveInstinct = arbiterMemory.getAdaptiveInstinct(input.targetContestNumber ?? undefined);
   const metaBias = arbiterMemory.getMetaBias(scenario);
 
+  // Log captura o estado do organismo que esta geração vai utilizar
+  // Permite comparar antes/depois de uma reacção ao aprendizado real
+  console.log(
+    `[GENERATION AFTER REACTION]\n` +
+    `  instinctMode:         ${adaptiveInstinct.mode}\n` +
+    `  mutationMultiplier:   ${adaptiveInstinct.mutationMultiplier.toFixed(2)}x\n` +
+    `  diversityBoost:       ${(adaptiveInstinct.diversityBoost * 100).toFixed(0)}%\n` +
+    `  antiClusterBoost:     ${(adaptiveInstinct.antiClusterBoost * 100).toFixed(0)}%\n` +
+    `  structuralBiasWeight: ${(adaptiveInstinct.structuralBiasWeight * 100).toFixed(0)}%\n` +
+    `  explorationWeight:    ${(adaptiveInstinct.explorationWeight * 100).toFixed(0)}%\n` +
+    `  memoryBias[${scenario}]:       ${(arbiterMemory.getState().memoryBias[scenario] ?? 0).toFixed(6)}\n` +
+    `  metaPatterns:         good=${metaBias.preferredPatterns.length} bad=${metaBias.avoidedPatterns.length}`,
+  );
+
   // ── Pressão adaptativa ─────────────────────────────────────────────────
   globalPressure.load();
   const adjustments = disableEngines.adaptivePressure

@@ -1003,6 +1003,78 @@ export const arbiterMemory = {
     console.log("[SOFT LEARNING] temporaryBias limpo — aprendizado real consolidado");
   },
 
+  /**
+   * Reação imediata do organismo após aprendizado real.
+   *
+   * - Captura estado before/after
+   * - Ajusta instinctRuntime com base em avgHits (sem overfitting)
+   * - Força re-avaliação do instinto na próxima geração
+   * - Loga [ORGANISM REACTION] com comparação before/after
+   *
+   * NÃO altera memoryBias, structuralBias nem metaBias diretamente.
+   * NÃO é chamado pelo backtest.
+   */
+  triggerOrganismReaction(
+    avgHits: number,
+    learned: number,
+    scenario: Scenario,
+  ): { modeBefore: string; modeAfter: string; healthScore: number } {
+    // === CAPTURA BEFORE ===
+    const healthBefore = this.evaluateSystemHealth();
+    const biasBefore = state.memoryBias[scenario] ?? 0;
+    const modeBefore = instinctRuntime.currentMode;
+
+    // === AJUSTE IMEDIATO DO INSTINTO (baseado em performance) ===
+    if (avgHits < 10) {
+      // Performance baixa → forçar modo recovery/exploration com guardrail
+      const newMode: InstinctMode = avgHits < 8 ? "exploration" : "recovery";
+      instinctRuntime.currentMode = newMode;
+      instinctRuntime.modeConfidence = clamp(instinctRuntime.modeConfidence * 0.5, 0, 1);
+      instinctRuntime.cyclesSinceRecovery = 0;
+    } else if (avgHits >= 11) {
+      // Performance boa → reforçar modo conservador
+      instinctRuntime.currentMode = "conservative";
+      instinctRuntime.modeConfidence = clamp(instinctRuntime.modeConfidence * 1.2, 0, 1);
+    }
+    // avgHits 10-11 → manter modo atual, reação automática via evaluateSystemHealth
+
+    // Forçar re-avaliação (reset do cache do concurso)
+    instinctRuntime.lastTargetContest = 0;
+
+    // === CAPTURA AFTER ===
+    const healthAfter = this.evaluateSystemHealth();
+    const instinctAfter = this.getAdaptiveInstinct();
+    const biasAfter = state.memoryBias[scenario] ?? 0;
+    const metaBiasAfter = this.getMetaBias(scenario);
+    const structBiasAfter = this.getStructuralBias(scenario);
+
+    const structuralBiasActive = Object.values(structBiasAfter.territoryPressure).some(
+      (v) => Math.abs(v) > 0.002,
+    );
+
+    console.log(
+      `[ORGANISM REACTION]\n` +
+      `  learnedCount:         ${learned}\n` +
+      `  avgHits:              ${avgHits.toFixed(1)}\n` +
+      `  healthScore:          ${(healthAfter.healthScore * 100).toFixed(0)}%\n` +
+      `  modeBefore:           ${modeBefore}\n` +
+      `  modeAfter:            ${instinctAfter.mode}\n` +
+      `  memoryBiasBefore:     ${biasBefore.toFixed(6)}\n` +
+      `  memoryBiasAfter:      ${biasAfter.toFixed(6)}\n` +
+      `  structuralBiasActive: ${structuralBiasActive}\n` +
+      `  metaBiasChanged:      good=${metaBiasAfter.preferredPatterns.length} bad=${metaBiasAfter.avoidedPatterns.length}\n` +
+      `  mutationMultiplier:   ${instinctAfter.mutationMultiplier.toFixed(2)}x\n` +
+      `  diversityBoost:       ${(instinctAfter.diversityBoost * 100).toFixed(0)}%\n` +
+      `  antiClusterBoost:     ${(instinctAfter.antiClusterBoost * 100).toFixed(0)}%`,
+    );
+
+    return {
+      modeBefore,
+      modeAfter: instinctAfter.mode,
+      healthScore: healthAfter.healthScore,
+    };
+  },
+
   getBrainBias(
     brain: "A" | "B",
     scenario: Scenario,

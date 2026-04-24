@@ -406,7 +406,7 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                         index: i, numbers: game.numbers, lineage: game.lineage,
                         decisionId: game.decisionId, hits, hitNumbers, quality, outcome,
                     });
-                } catch (gameErr: any) {
+                } catch (gameErr: unknown) {
                     gameErrors++;
                     console.error(`[ARBITER LEARNING] erro no jogo ${i} (decisionId=${game.decisionId}):`, gameErr);
                     gameResults.push({
@@ -468,6 +468,11 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                 `  blocked:       ${blocked}\n` +
                 `  gameErrors:    ${gameErrors}`,
             );
+
+            // Reacão imediata do organismo (apenas após aprendizado real)
+            // Não é chamado em backtest nem em modo contínuo
+            arbiterMemory.triggerOrganismReaction(avgHits, learned, scenario);
+
         } catch (e: any) {
             console.error("[AUTO LEARNING] erro:", e);
             setAutoStatus("error");
