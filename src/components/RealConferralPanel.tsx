@@ -40,6 +40,7 @@ interface LearningReport {
     contestNumber: number;
     targetContestNumber: number;
     scenario: Scenario;
+    mode: "exact-target" | "target-minus-one";
     totalGames: number;
     learned: number;
     duplicate: number;
@@ -286,10 +287,32 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                 return;
             }
 
-            // Verificar se concurso-alvo existe no histórico
-            const draw = await fetchDrawByContest(targetContest);
-            if (!draw) {
-                // ── MODO CONTÍNUO: concurso ainda não existe, evoluir com histórico recente ──
+            // ── PARTE 1: Resolver draw real (exact-target ou target-minus-one) ───────────────
+            let resolvedDraw = await fetchDrawByContest(targetContest);
+            let drawMode: "exact-target" | "target-minus-one" | null = null;
+
+            if (resolvedDraw) {
+                drawMode = "exact-target";
+            } else {
+                // Fallback: target - 1 é aceito por applyLearning (guard já implementado)
+                const fallbackDraw = await fetchDrawByContest(targetContest - 1);
+                if (fallbackDraw) {
+                    resolvedDraw = fallbackDraw;
+                    drawMode = "target-minus-one";
+                }
+            }
+
+            console.log(
+                `[AUTO CONFERRAL CHECK]\n` +
+                `  targetContestNumber: ${targetContest}\n` +
+                `  exactDrawFound:      ${drawMode === "exact-target"}\n` +
+                `  fallbackDrawFound:   ${drawMode === "target-minus-one"}\n` +
+                `  selectedDraw:        ${resolvedDraw?.contestNumber ?? "none"}\n` +
+                `  mode:                ${drawMode ?? "none — modo contínuo"}`,
+            );
+
+            if (!resolvedDraw || !drawMode) {
+                // ── MODO CONTÍNUO: nenhum draw válido (nem target nem target-1) ──
                 setSoftInfo(null);
                 try {
                     const recentDraws = await fetchRecentRealDraws(10);
@@ -312,7 +335,7 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                 return;
             }
 
-            // Concurso real encontrado — limpar bias temporário antes do aprendizado real
+            // ── Draw real encontrado — aprendizado real (limpar bias temporário) ──
             arbiterMemory.clearTemporaryBias();
             setSoftInfo(null);
 
@@ -335,11 +358,20 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                     continue;
                 }
 
-                const hits = countHits(game.numbers, draw.numbers);
-                const hitNumbers = game.numbers.filter((n) => (draw.numbers as number[]).includes(n));
+                const hits = countHits(game.numbers, resolvedDraw.numbers);
+                const hitNumbers = game.numbers.filter((n) => (resolvedDraw.numbers as number[]).includes(n));
                 const quality: "good" | "neutral" | "bad" = hits >= 11 ? "good" : hits >= 9 ? "neutral" : "bad";
 
-                const result = arbiterMemory.applyLearning(game.decisionId, hits, draw.contestNumber);
+                const result = arbiterMemory.applyLearning(game.decisionId, hits, resolvedDraw.contestNumber);
+
+                console.log(
+                    `[ARBITER LEARNING RESULT]\n` +
+                    `  decisionId: ${game.decisionId}\n` +
+                    `  hits:       ${hits}\n` +
+                    `  quality:    ${quality}\n` +
+                    `  applied:    ${result.applied}\n` +
+                    `  reason:     ${result.reason}`,
+                );
 
                 let outcome: GameResult["outcome"];
                 if (result.applied) {
@@ -374,12 +406,25 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
 
             const avgHits = hitsCount > 0 ? totalHitsForAvg / hitsCount : 0;
             const newReport: LearningReport = {
-                contestNumber: draw.contestNumber, targetContestNumber: targetContest, scenario,
+                contestNumber: resolvedDraw.contestNumber,
+                targetContestNumber: targetContest,
+                scenario,
+                mode: drawMode,
                 totalGames: games.length, learned, duplicate, blocked, noDecision,
                 avgHits, bestHits, worstHits: worstHits === Infinity ? 0 : worstHits,
                 goodCount, neutralCount, badCount, games: gameResults,
             };
             setReport(newReport);
+
+            console.log(
+                `[AUTO CONFERRAL APPLY]\n` +
+                `  drawContestNumber: ${resolvedDraw.contestNumber}\n` +
+                `  mode:              ${drawMode}\n` +
+                `  learned:           ${learned}\n` +
+                `  duplicates:        ${duplicate}\n` +
+                `  noDecision:        ${noDecision}\n` +
+                `  blocked:           ${blocked}`,
+            );
 
             // Classificar status final
             const allAlreadyDone = duplicate + noDecision + blocked === games.length;
@@ -398,7 +443,7 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
             if (isManual && learned > 0) {
                 toast({
                     title: "Aprendizado aplicado",
-                    description: `${learned} jogo(s) aprendidos — concurso ${draw.contestNumber}.`,
+                    description: `${learned} jogo(s) aprendidos — concurso ${resolvedDraw.contestNumber} (${drawMode}).`,
                 });
             }
 
@@ -561,30 +606,41 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
             )}
 
             {report && (autoStatus === "learned" || autoStatus === "already-learned" || autoStatus === "partial") && (
-                <div className="grid grid-cols-3 gap-2 text-[11px]">
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-muted-foreground">Média hits</div>
-                        <div className="text-base font-mono font-semibold text-foreground">{report.avgHits.toFixed(1)}</div>
+                <div className="space-y-2">
+                    <div className="text-[10px] text-muted-foreground/60 font-mono">
+                        {report.mode === "target-minus-one"
+                            ? `⚡ modo: último concurso disponível (#${report.contestNumber}) — alvo #${report.targetContestNumber} ainda não sorteado`
+                            : `✓ modo: concurso alvo exato (#${report.contestNumber})`}
+                        {" — "}Aprendidos: <span className="text-emerald-400">{report.learned}</span>
+                        {" | "}Duplicados: {report.duplicate}
+                        {" | "}Sem decisionId: {report.noDecision}
+                        {" | "}Bloqueados: {report.blocked}
                     </div>
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-muted-foreground">Melhor</div>
-                        <div className="text-base font-mono font-semibold text-emerald-400">{report.bestHits}</div>
-                    </div>
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-muted-foreground">Pior</div>
-                        <div className="text-base font-mono font-semibold text-red-400">{report.worstHits}</div>
-                    </div>
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-emerald-400">Bom</div>
-                        <div className="font-mono font-semibold">{report.goodCount}</div>
-                    </div>
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-amber-400">Neutro</div>
-                        <div className="font-mono font-semibold">{report.neutralCount}</div>
-                    </div>
-                    <div className="glass rounded-lg px-3 py-2 text-center">
-                        <div className="text-red-400">Ruim</div>
-                        <div className="font-mono font-semibold">{report.badCount}</div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-muted-foreground">Média hits</div>
+                            <div className="text-base font-mono font-semibold text-foreground">{report.avgHits.toFixed(1)}</div>
+                        </div>
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-muted-foreground">Melhor</div>
+                            <div className="text-base font-mono font-semibold text-emerald-400">{report.bestHits}</div>
+                        </div>
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-muted-foreground">Pior</div>
+                            <div className="text-base font-mono font-semibold text-red-400">{report.worstHits}</div>
+                        </div>
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-emerald-400">Bom</div>
+                            <div className="font-mono font-semibold">{report.goodCount}</div>
+                        </div>
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-amber-400">Neutro</div>
+                            <div className="font-mono font-semibold">{report.neutralCount}</div>
+                        </div>
+                        <div className="glass rounded-lg px-3 py-2 text-center">
+                            <div className="text-red-400">Ruim</div>
+                            <div className="font-mono font-semibold">{report.badCount}</div>
+                        </div>
                     </div>
                 </div>
             )}
