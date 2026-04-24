@@ -560,6 +560,7 @@ export const arbiterMemory = {
       `  normalizedDelta: ${normalizedDelta.toFixed(6)}\n` +
       `  biasAfter:     ${biasAfter.toFixed(6)}`,
     );
+    return { applied: true, reason: "learned" };
   },
 
   getBrainBias(
