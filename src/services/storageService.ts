@@ -427,6 +427,7 @@ export async function persistArbiterDecision(decision: {
     balanceA: number;
     balanceAAdjustment: number;
     slot: number;
+    targetContestNumber?: number | null;
   };
   good: boolean;
 }): Promise<void> {
@@ -459,6 +460,7 @@ export async function persistArbiterDecision(decision: {
     },
     metadata: {
       balanceAAdjustment: decision.context.balanceAAdjustment,
+      targetContestNumber: decision.context.targetContestNumber ?? null,
       source: "arbiterMemory",
     },
     source: "arbiterMemory",

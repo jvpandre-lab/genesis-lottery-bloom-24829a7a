@@ -187,6 +187,7 @@ export interface GenerationResult {
   label: string;
   scenario: Scenario;
   requestedCount: number;
+  targetContestNumber?: number;
   batches: Batch[];
   metrics: {
     avgScore: number;

@@ -118,6 +118,7 @@ export function arbitrateBatch(
   scenario: Scenario,
   mutationRate: number,
   batchName: BatchName,
+  targetContestNumber?: number,
 ): { selected: BrainProposal[]; reasoning: string[]; metrics: ArbiterMetrics } {
   // P2 FIX: filtro pré-árbitro — remove candidatos degenerados por coverage
   const filtered = candidates.filter((c) => c.coverageVal >= 0.3);
@@ -234,6 +235,7 @@ export function arbitrateBatch(
         balanceA: targetBalanceA,
         balanceAAdjustment: 0,
         slot: accepted.length,
+        targetContestNumber: targetContestNumber ?? null,
       },
       good: chosen.value >= rejected.value,
     };

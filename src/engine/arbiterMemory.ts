@@ -25,6 +25,7 @@ export interface DecisionContext {
   balanceA: number;
   balanceAAdjustment: number;
   slot: number;
+  targetContestNumber?: number | null;
 }
 
 export interface ArbiterDecisionRecord {
@@ -194,6 +195,7 @@ async function loadStateFromDB(): Promise<ArbiterMemoryState | null> {
         balanceA: row.balance_a || 0.5,
         balanceAAdjustment: row.metadata?.balanceAAdjustment || 0,
         slot: row.slot || 0,
+        targetContestNumber: row.metadata?.targetContestNumber ?? null,
       },
       good:
         typeof row.outcome_good === "boolean"
@@ -447,6 +449,10 @@ export const arbiterMemory = {
   /**
    * Apply real learning from an actual draw result.
    *
+   * Protection Rule:
+   * - If `decision.context.targetContestNumber` does not match `contestNumber`,
+   *   skip learning. This prevents simulated conferences from polluting the DB.
+   *
    * Guards:
    * - If the decision doesn't exist → no-op
    * - If `decision.outcomeHits` is already set → skip (idempotent, works across
@@ -458,7 +464,7 @@ export const arbiterMemory = {
    *
    * @param decisionId  ID of the ArbiterDecisionRecord to update
    * @param hits        Real number of matched numbers in the draw
-   * @param contestNumber  Contest number (logged for traceability)
+   * @param contestNumber  Contest number (logged for traceability and validated against target)
    */
   applyLearning(decisionId: string, hits: number, contestNumber: number): void {
     const decision = state.decisions.find((d) => d.id === decisionId);
@@ -466,6 +472,17 @@ export const arbiterMemory = {
     if (!decision) {
       console.warn(
         `[ARBITER LEARNING] decisionId ${decisionId} not found in memory`,
+      );
+      return;
+    }
+
+    // --- Protection Rule: Simulated Conference Guard ---
+    if (decision.context.targetContestNumber !== contestNumber) {
+      console.log(
+        `[ARBITER LEARNING] skipped simulated conference` +
+        ` | decisionId: ${decisionId}` +
+        ` | target: ${decision.context.targetContestNumber}` +
+        ` | tested: ${contestNumber}`,
       );
       return;
     }

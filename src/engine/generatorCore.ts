@@ -36,6 +36,7 @@ export interface GenerateInput {
   recentResults?: GenerationResult[];
   rng?: RNG;
   label?: string;
+  targetContestNumber?: number;
   /** Quando true, usa Dois Cérebros + Árbitro (recomendado). */
   twoBrains?: boolean;
   /** Flags para desativar engines específicos (testes A/B). */
@@ -237,13 +238,13 @@ export async function generate(
   globalPressure.load();
   const adjustments = disableEngines.adaptivePressure
     ? {
-        mutationDelta: 0,
-        explorationBoost: 0,
-        rigidityDelta: 0,
-        lineageWeights: {},
-        scenarioOverride: undefined,
-        reasons: [],
-      }
+      mutationDelta: 0,
+      explorationBoost: 0,
+      rigidityDelta: 0,
+      lineageWeights: {},
+      scenarioOverride: undefined,
+      reasons: [],
+    }
     : globalPressure.computeAdjustments(scenario);
   const effectiveScenario: Scenario = adjustments.scenarioOverride ?? scenario;
 
@@ -419,6 +420,7 @@ export async function generate(
         finalScenario,
         baseRate,
         batchName,
+        input.targetContestNumber,
       );
 
       arbiterReasoning.push(`Lote ${batchName}: ${reasoning.join(" | ")}`);
@@ -497,15 +499,15 @@ export async function generate(
         };
         const numbers = disableEngines.evolutionary
           ? Array.from(
-              { length: 50 },
-              (_, i) => (i * 2 + lineage.charCodeAt(0)) % 100,
-            )
+            { length: 50 },
+            (_, i) => (i * 2 + lineage.charCodeAt(0)) % 100,
+          )
           : evolve(lineage, ctx, {
-              populationSize: 32,
-              generations: 18,
-              baseMutationRate: baseRate,
-              rng,
-            });
+            populationSize: 32,
+            generations: 18,
+            baseMutationRate: baseRate,
+            rng,
+          });
         if (
           !disableEngines.diversity &&
           isRedundant(
@@ -519,20 +521,20 @@ export async function generate(
         }
         const metrics = disableEngines.coverage
           ? {
-              coverage: 0.5,
-              balance: 0.5,
-              distribution: 0.5,
-              evenCount: 25,
-              oddCount: 25,
-              primeCount: 10,
-              sumTotal: 2475,
-              meanGap: 2,
-              maxGap: 10,
-              consecutivePairs: 5,
-              decadeCounts: new Array(10).fill(5),
-              rowCounts: new Array(10).fill(5),
-              colCounts: new Array(10).fill(5),
-            }
+            coverage: 0.5,
+            balance: 0.5,
+            distribution: 0.5,
+            evenCount: 25,
+            oddCount: 25,
+            primeCount: 10,
+            sumTotal: 2475,
+            meanGap: 2,
+            maxGap: 10,
+            consecutivePairs: 5,
+            decadeCounts: new Array(10).fill(5),
+            rowCounts: new Array(10).fill(5),
+            colCounts: new Array(10).fill(5),
+          }
           : computeMetrics(numbers);
         const score = scoreGame(numbers, ctx, metrics);
         if (games.length > 0 && score.total < 0.45) {
@@ -553,11 +555,11 @@ export async function generate(
         const numbers = disableEngines.evolutionary
           ? Array.from({ length: 50 }, (_, i) => (i * 2) % 100)
           : evolve(lineage, ctx, {
-              populationSize: 24,
-              generations: 12,
-              baseMutationRate: Math.min(0.4, baseRate + 0.08),
-              rng,
-            });
+            populationSize: 24,
+            generations: 12,
+            baseMutationRate: Math.min(0.4, baseRate + 0.08),
+            rng,
+          });
         const metrics = computeMetrics(numbers);
         const score = scoreGame(numbers, ctx, metrics);
         games.push({ numbers, lineage, score, metrics });
@@ -575,12 +577,12 @@ export async function generate(
     const objScore = disableEngines.batchObjective
       ? games.reduce((s, g) => s + g.score.total, 0) / Math.max(1, games.length)
       : computeBatchObjective(
-          games,
-          bPicksA,
-          bPicksB,
-          finalScenario,
-          batchName,
-        );
+        games,
+        bPicksA,
+        bPicksB,
+        finalScenario,
+        batchName,
+      );
     batchObjectiveScores[batchName] = objScore;
 
     const avgScore =
@@ -651,6 +653,7 @@ export async function generate(
     label: input.label ?? `Geração ${new Date().toLocaleTimeString("pt-BR")}`,
     scenario: finalScenario,
     requestedCount: totalCount,
+    targetContestNumber: input.targetContestNumber,
     batches,
     metrics: { avgScore, avgDiversity, avgCoverage, territoryEntropy },
     diagnostics,
@@ -681,9 +684,9 @@ export async function generate(
     const arbitrationDifficulty =
       arbiterMetricsList.length > 0
         ? arbiterMetricsList.reduce(
-            (s, m) => s + (m.captureRisk === "high" ? 1 : 0),
-            0,
-          ) / arbiterMetricsList.length
+          (s, m) => s + (m.captureRisk === "high" ? 1 : 0),
+          0,
+        ) / arbiterMetricsList.length
         : 0;
     brainTensionEngine.recordGeneration(
       result,
