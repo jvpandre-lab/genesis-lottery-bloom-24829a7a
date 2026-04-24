@@ -114,6 +114,32 @@ export async function getLatestContestNumber(): Promise<number | null> {
   return data?.contest_number ?? null;
 }
 
+/**
+ * Busca um concurso específico pelo número.
+ * Retorna null (sem throw) se o concurso ainda não existe na base.
+ * Usado pelo auto-aprendizado para verificar se o concurso-alvo já foi sorteado.
+ */
+export async function fetchDrawByContest(
+  contestNumber: number,
+): Promise<DrawRecord | null> {
+  const { data, error } = await supabase
+    .from("lotomania_draws")
+    .select("contest_number, draw_date, numbers")
+    .eq("contest_number", contestNumber)
+    .maybeSingle();
+  if (error) {
+    console.warn("[fetchDrawByContest] erro:", error);
+    return null;
+  }
+  if (!data) return null;
+  return {
+    contestNumber: data.contest_number,
+    drawDate: data.draw_date ?? undefined,
+    numbers: data.numbers as Dezena[],
+    source: "database" as const,
+  };
+}
+
 export async function countDraws(): Promise<number> {
   const { count, error } = await supabase
     .from("lotomania_draws")

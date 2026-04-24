@@ -341,7 +341,7 @@ const Index = () => {
                   <BatchSection key={b.name} batch={b} />
                 ))}
                 <div className="mt-8">
-                  <RealConferralPanel currentResult={result} />
+                  <RealConferralPanel currentResult={result} drawsSyncCount={draws} />
                 </div>
               </div>
               <aside className="space-y-6">
