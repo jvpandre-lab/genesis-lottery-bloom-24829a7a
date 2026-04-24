@@ -110,43 +110,49 @@ export function RealConferralPanel({ currentResult }: RealConferralPanelProps) {
             let learnedCount = 0;
             let ignoredCount = 0;
             let withoutDecisionId = 0;
+            let duplicateCount = 0;
+            let blockedCount = 0;
 
             for (const game of allGames) {
                 if (!game.decisionId) {
                     withoutDecisionId++;
+                    ignoredCount++;
                     continue;
                 }
                 const hits = countHits(game.numbers, latestDraw.numbers);
-                const prev = arbiterMemory
-                    .getState()
-                    .decisions.find((d) => d.id === game.decisionId);
-                const target = prev?.context.targetContestNumber;
 
-                arbiterMemory.applyLearning(
+                const result = arbiterMemory.applyLearning(
                     game.decisionId,
                     hits,
                     latestDraw.contestNumber,
                 );
 
-                const after = arbiterMemory
-                    .getState()
-                    .decisions.find((d) => d.id === game.decisionId);
-                if (
-                    target === latestDraw.contestNumber &&
-                    after?.outcomeHits !== undefined
-                ) {
+                if (result.applied) {
                     learnedCount++;
                 } else {
                     ignoredCount++;
+                    if (result.reason === "duplicate") duplicateCount++;
+                    else if (result.reason === "blocked") blockedCount++;
                 }
             }
+
+            console.log(
+                `[CONFERENCE RESULT]\n` +
+                `  learned: ${learnedCount}\n` +
+                `  ignored: ${ignoredCount}\n` +
+                `  total:   ${allGames.length}\n` +
+                `  breakdown: { noDecisionId: ${withoutDecisionId}, duplicate: ${duplicateCount}, blocked: ${blockedCount} }`,
+            );
+
+            const extras: string[] = [];
+            if (withoutDecisionId > 0) extras.push(`sem decisionId: ${withoutDecisionId}`);
+            if (duplicateCount > 0) extras.push(`duplicados: ${duplicateCount}`);
+            if (blockedCount > 0) extras.push(`bloqueados: ${blockedCount}`);
 
             setConferralStatus(
                 `✅ Conferência concluída (fonte: ${sourceLabel}). Concurso ${latestDraw.contestNumber}. ` +
                     `Jogos: ${allGames.length}. Aprendidos: ${learnedCount}. Ignorados: ${ignoredCount}.` +
-                    (withoutDecisionId > 0
-                        ? ` Sem decisionId: ${withoutDecisionId}.`
-                        : ""),
+                    (extras.length > 0 ? ` (${extras.join(", ")})` : ""),
             );
             toast({
                 title: "Conferência Executada",
