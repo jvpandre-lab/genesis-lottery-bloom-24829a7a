@@ -234,6 +234,8 @@ export async function generate(
   }
   console.log(`[ARBITER] decisionsBefore=${decisionsBefore}`);
 
+  const structuralBias = arbiterMemory.getStructuralBias(scenario);
+
   // ── Pressão adaptativa ─────────────────────────────────────────────────
   globalPressure.load();
   const adjustments = disableEngines.adaptivePressure

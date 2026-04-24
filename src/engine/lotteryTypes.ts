@@ -136,7 +136,18 @@ export interface ScoreBreakdown {
   territory: number; // 0..1 (exploração de zonas pouco usadas)
   antiBias: number; // 0..1 (penaliza padrões humanos)
   clusterPenalty: number; // 0..1 (1 = nenhum cluster)
+  structuralAffinity?: number; // delta inserido pelo Bias Evolutivo (-0.15 .. +0.15)
   total: number; // ponderada 0..1
+}
+
+export interface StructuralBias {
+  numberPressure: Record<number, number>;
+  territoryPressure: Record<string, number>;
+  lineagePreference: Record<string, number>;
+  diversityPush: number;
+  antiClusterPush: number;
+  explorationPush: number;
+  conservativePush: number;
 }
 
 export interface GameMetrics {

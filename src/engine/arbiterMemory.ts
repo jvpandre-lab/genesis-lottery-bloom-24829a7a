@@ -16,6 +16,7 @@ export interface DecisionCandidateSnapshot {
   coverageVal: number;
   clusterVal: number;
   value: number;
+  numbers?: number[];
 }
 
 export interface DecisionContext {
@@ -495,12 +496,11 @@ export const arbiterMemory = {
       `  targetContestNumber:  ${target}\n` +
       `  testedContestNumber:  ${contestNumber}\n` +
       `  accepted:             ${accepted}\n` +
-      `  reason:               ${
-        accepted
-          ? "match (target or target-1)"
-          : target == null
-            ? "no target set"
-            : "contest mismatch (out of accepted window)"
+      `  reason:               ${accepted
+        ? "match (target or target-1)"
+        : target == null
+          ? "no target set"
+          : "contest mismatch (out of accepted window)"
       }`,
     );
 
@@ -610,4 +610,114 @@ export const arbiterMemory = {
     }
     return clamp(balanceA + adjustment, 0.1, 0.92);
   },
+
+  /**
+   * Extrai a memória contextual estrutural baseada no resultado fenotípico das dezenas e linhagens
+   * que sobreviveram aos embates do Árbitro na janela temporal recente.
+   * Regras Anti-Overfitting aplicadas:
+   * - Ocorrência mínima (n > 1) antes de conferir poder.
+   * - Clamp de score estrito e Decay Temporal na janela de amostragem.
+   */
+  getStructuralBias(scenario: Scenario) {
+    const MAX_WINDOW = 60;
+    // Captura apenas decisões já aprendidas (com qualidade declarada) do respectivo cenário
+    const windowDecisions = state.decisions
+      .filter((d) => d.context.scenario === scenario && d.outcomeQuality && d.outcomeQuality !== "neutral")
+      .slice(-MAX_WINDOW)
+      .reverse();
+
+    const output = {
+      numberPressure: {} as Record<number, number>,
+      territoryPressure: {} as Record<string, number>,
+      lineagePreference: {} as Record<string, number>,
+      diversityPush: 0,
+      antiClusterPush: 0,
+      explorationPush: 0,
+      conservativePush: 0,
+    };
+
+    if (windowDecisions.length === 0) return output;
+
+    // Trackers
+    const numTracker: Record<number, { goodScale: number; badScale: number; count: number }> = {};
+    const linTracker: Record<string, { goodScale: number; badScale: number; count: number }> = {};
+    let aggDiversityModifier = 0;
+    let aggClusterModifier = 0;
+
+    windowDecisions.forEach((d, i) => {
+      // Peso do decay: de 1.0 (recente) a 0.2 (longínquo)
+      const temporalDecay = 1.0 - (i / MAX_WINDOW) * 0.8;
+      const isGood = d.outcomeQuality === "good";
+
+      // Track lineage
+      const lin = d.chosen.lineage;
+      if (!linTracker[lin]) linTracker[lin] = { goodScale: 0, badScale: 0, count: 0 };
+      linTracker[lin].count += 1;
+      if (isGood) linTracker[lin].goodScale += temporalDecay;
+      else linTracker[lin].badScale += temporalDecay;
+
+      // Track indicators for push mechanisms
+      if (!isGood) {
+        // Se deu ruim e o escolhido tinha cluster altíssimo, empurrar o motor global de antiClusterPush
+        if (d.chosen.clusterVal > 0.6) aggClusterModifier += temporalDecay * 1.5;
+        // Se deu ruim e diversidade era baixa, subir o exploration.
+        if (d.chosen.diversity < 0.4) aggDiversityModifier += temporalDecay;
+      }
+
+      // Track numbers se salvos
+      if (d.chosen.numbers && Array.isArray(d.chosen.numbers)) {
+        d.chosen.numbers.forEach((n) => {
+          if (!numTracker[n]) numTracker[n] = { goodScale: 0, badScale: 0, count: 0 };
+          numTracker[n].count += 1;
+          if (isGood) numTracker[n].goodScale += temporalDecay;
+          else numTracker[n].badScale += temporalDecay;
+        });
+      }
+    });
+
+    // Compilation - Numbers
+    let boostedCount = 0;
+    let penalizedCount = 0;
+    Object.keys(numTracker).forEach((key) => {
+      const n = Number(key);
+      const meta = numTracker[n];
+      // Anti-overfitting rule 1: Ignorar se ocorreu pouco na janela
+      if (meta.count < 2) return;
+
+      const balance = (meta.goodScale * 0.02) - (meta.badScale * 0.015);
+      if (balance > 0.005) {
+        output.numberPressure[n] = clamp(balance, 0, 0.12);
+        boostedCount++;
+      } else if (balance < -0.005) {
+        output.numberPressure[n] = clamp(balance, -0.12, 0);
+        penalizedCount++;
+      }
+    });
+
+    // Compilation - Lineages
+    Object.keys(linTracker).forEach((lin) => {
+      const meta = linTracker[lin];
+      if (meta.count < 2) return;
+      const balance = (meta.goodScale * 0.02) - (meta.badScale * 0.01);
+      output.lineagePreference[lin] = clamp(balance, -0.2, 0.2);
+    });
+
+    // Pushes globais
+    const normAgg = (val: number) => clamp(val / MAX_WINDOW, 0, 1.0);
+    output.diversityPush = normAgg(aggDiversityModifier);
+    output.antiClusterPush = normAgg(aggClusterModifier);
+    output.explorationPush = normAgg(aggDiversityModifier * 0.8);
+
+    console.log(
+      `[STRUCTURAL BIAS]\n` +
+      `  scenario:        ${scenario}\n` +
+      `  decisionsUsed:   ${windowDecisions.length}\n` +
+      `  boostedNumbers:  ${boostedCount}\n` +
+      `  penalNumbers:    ${penalizedCount}\n` +
+      `  antiClusterPush: ${output.antiClusterPush.toFixed(3)}\n` +
+      `  diversityPush:   ${output.diversityPush.toFixed(3)}\n`
+    );
+
+    return output;
+  }
 };
