@@ -544,7 +544,7 @@ export async function updateArbiterDecisionOutcome(
 
   const { error } = await supabase
     .from("arbiter_decisions")
-    .update(payload)
+    .update(payload as any)
     .eq("id", id);
 
   if (error) {

@@ -37,12 +37,12 @@ export function RealConferralPanel() {
 
             const allGames: { numbers: number[], lineage: string, decisionId?: string }[] = [];
             for (const b of bs) {
-                const { data: games } = await supabase.from("generation_games").select("numbers, lineage, decision_id").eq("batch_id", b.id);
+                const { data: games } = await supabase.from("generation_games").select("numbers, lineage, metrics").eq("batch_id", b.id);
                 if (games) {
-                    allGames.push(...games.map(g => ({
+                    allGames.push(...games.map((g: any) => ({
                         numbers: g.numbers,
                         lineage: g.lineage,
-                        decisionId: g.decision_id
+                        decisionId: (g.metrics as any)?.decisionId
                     })));
                 }
             }
