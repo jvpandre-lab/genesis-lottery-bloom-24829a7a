@@ -34,15 +34,28 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
 
   let structuralAffinity = 0;
   if (ctx.structuralBias) {
-    // 1. Modificador Numérico (Number Pressure)
+    // 1. Modificador Numérico (Number Pressure) & Geográfico (Zonas)
     let numMod = 0;
+    let terrMod = 0;
+    const zoneCounts: Record<string, number> = {};
+
     for (const num of numbers) {
+      // Track numbers
       if (ctx.structuralBias.numberPressure[num]) {
         numMod += ctx.structuralBias.numberPressure[num];
       }
+
+      // Track Zones (Z0 a Z9)
+      const z = num === 0 ? "Z0" : "Z" + Math.floor(Math.min(99, Math.max(0, num)) / 10);
+      zoneCounts[z] = (zoneCounts[z] || 0) + 1;
+      if (ctx.structuralBias.territoryPressure[z]) {
+        terrMod += ctx.structuralBias.territoryPressure[z];
+      }
     }
-    // Limitador rígido (clampar variação total em [-0.15, +0.15] ponderado)
+
+    // Limitador rígido duplo (clampar variação total evitando domination absoluto)
     structuralAffinity += Math.max(-0.15, Math.min(0.15, numMod / 20));
+    structuralAffinity += Math.max(-0.10, Math.min(0.10, terrMod / 35));
 
     // 2. Modificador de Estruturas Físicas
     if (ctx.structuralBias.diversityPush > 0) {
@@ -50,8 +63,15 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
       div = Math.min(1.0, div * (1 + ctx.structuralBias.diversityPush * 0.4));
     }
     if (ctx.structuralBias.antiClusterPush > 0) {
-      // cl (quanto mais alto, menos clusters ruins). punir mais severamente clusters baixos!
-      if (cl < 0.6) cl = Math.max(0, cl - ctx.structuralBias.antiClusterPush * 0.5);
+      // cl (quanto mais alto, menos clusters ruins). Punir concentrações por excesso na mesma ZONA e por proximidade.
+      let maxConcentration = 0;
+      for (const k in zoneCounts) maxConcentration = Math.max(maxConcentration, zoneCounts[k]);
+
+      if (maxConcentration > 8) {
+        cl = Math.max(0, cl - ctx.structuralBias.antiClusterPush * 0.6); // forte penalty pro candidate superlotado
+      } else {
+        cl = Math.max(0, cl - ctx.structuralBias.antiClusterPush * 0.3); // penalty leve se nao ta superlotado mas tem clusters adjacentes
+      }
     }
   }
 

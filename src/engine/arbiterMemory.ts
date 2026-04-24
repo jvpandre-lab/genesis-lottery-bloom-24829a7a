@@ -612,6 +612,14 @@ export const arbiterMemory = {
   },
 
   /**
+   * Identifica a zona geográfica (00-09, 10-19... 90-99) da dezena.
+   */
+  getZoneFor(num: number): string {
+    if (num === 0) return "Z0"; // 00 da Lotomania
+    return "Z" + Math.floor(Math.min(99, Math.max(0, num)) / 10);
+  },
+
+  /**
    * Extrai a memória contextual estrutural baseada no resultado fenotípico das dezenas e linhagens
    * que sobreviveram aos embates do Árbitro na janela temporal recente.
    * Regras Anti-Overfitting aplicadas:
@@ -641,6 +649,7 @@ export const arbiterMemory = {
     // Trackers
     const numTracker: Record<number, { goodScale: number; badScale: number; count: number }> = {};
     const linTracker: Record<string, { goodScale: number; badScale: number; count: number }> = {};
+    const zoneTracker: Record<string, { goodScale: number; badScale: number; count: number }> = {};
     let aggDiversityModifier = 0;
     let aggClusterModifier = 0;
 
@@ -666,11 +675,33 @@ export const arbiterMemory = {
 
       // Track numbers se salvos
       if (d.chosen.numbers && Array.isArray(d.chosen.numbers)) {
+        const gameZoneCounts: Record<string, number> = {};
+
         d.chosen.numbers.forEach((n) => {
           if (!numTracker[n]) numTracker[n] = { goodScale: 0, badScale: 0, count: 0 };
           numTracker[n].count += 1;
           if (isGood) numTracker[n].goodScale += temporalDecay;
           else numTracker[n].badScale += temporalDecay;
+
+          const z = this.getZoneFor(n);
+          gameZoneCounts[z] = (gameZoneCounts[z] || 0) + 1;
+        });
+
+        // Registrar o impacto do território na decisão global
+        Object.keys(gameZoneCounts).forEach((z) => {
+          if (!zoneTracker[z]) zoneTracker[z] = { goodScale: 0, badScale: 0, count: 0 };
+          zoneTracker[z].count += 1;
+          // Peso da zona perante a relevância nos números do jogo
+          const scopeWeight = gameZoneCounts[z] / 50;
+          if (isGood) {
+            zoneTracker[z].goodScale += temporalDecay * scopeWeight;
+          } else {
+            zoneTracker[z].badScale += temporalDecay * scopeWeight;
+            // Penalidade adicional: concentração nociva (> 8 dezenas na mesma zona e o jogo foi ruim)
+            if (gameZoneCounts[z] > 8) {
+              aggClusterModifier += temporalDecay * 1.2;
+            }
+          }
         });
       }
     });
@@ -702,6 +733,22 @@ export const arbiterMemory = {
       output.lineagePreference[lin] = clamp(balance, -0.2, 0.2);
     });
 
+    // Compilation - Territory
+    let boostedZones = 0;
+    let penalizedZones = 0;
+    Object.keys(zoneTracker).forEach((z) => {
+      const meta = zoneTracker[z];
+      if (meta.count < 2) return;
+      const balance = (meta.goodScale * 0.15) - (meta.badScale * 0.1);
+      if (balance > 0.005) {
+        output.territoryPressure[z] = clamp(balance, 0, 0.06);
+        boostedZones++;
+      } else if (balance < -0.005) {
+        output.territoryPressure[z] = clamp(balance, -0.09, 0);
+        penalizedZones++;
+      }
+    });
+
     // Pushes globais
     const normAgg = (val: number) => clamp(val / MAX_WINDOW, 0, 1.0);
     output.diversityPush = normAgg(aggDiversityModifier);
@@ -709,13 +756,11 @@ export const arbiterMemory = {
     output.explorationPush = normAgg(aggDiversityModifier * 0.8);
 
     console.log(
-      `[STRUCTURAL BIAS]\n` +
+      `[TERRITORY BIAS]\n` +
       `  scenario:        ${scenario}\n` +
-      `  decisionsUsed:   ${windowDecisions.length}\n` +
-      `  boostedNumbers:  ${boostedCount}\n` +
-      `  penalNumbers:    ${penalizedCount}\n` +
-      `  antiClusterPush: ${output.antiClusterPush.toFixed(3)}\n` +
-      `  diversityPush:   ${output.diversityPush.toFixed(3)}\n`
+      `  zonesBoosted:    ${boostedZones}\n` +
+      `  zonesPenalized:  ${penalizedZones}\n` +
+      `  antiClusterPush: ${output.antiClusterPush.toFixed(3)}\n`
     );
 
     return output;
