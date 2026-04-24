@@ -18,20 +18,14 @@ export function RealConferralPanel() {
             // 1. Pega os jogos gerados mais recentes
             const gens = await fetchRecentGenerations(1);
             if (!gens || gens.length === 0) {
-                toast({ title: "Erro", description: "Nenhuma geração encontrada.", variant: "destructive" });
+                setConferralStatus("⚠️ Gere jogos antes de conferir");
                 return;
             }
             const lastGen = gens[0];
 
-            // Pegar os games do banco de dados para a geração encontrada (já que fetchRecentGenerations traz apenas metadados na real?)
-            // Wait, let's look at what fetchRecentGenerations returns.
-            // Typically it returns the full GenerationResult if the service provides it, but if it doesn't we might need to fetch games manually.
-            // Let's assume recentGens returned by the service are full-ish or we can reconstruct.
-            // Actually let's query the specific batches and games to be safe, just like BacktestPanel does.
-
             const { data: bs } = await supabase.from("generation_batches").select("id").eq("generation_id", lastGen.id);
-            if (!bs) {
-                toast({ title: "Erro", description: "Lotes não encontrados", variant: "destructive" });
+            if (!bs || bs.length === 0) {
+                setConferralStatus("⚠️ Gere jogos antes de conferir");
                 return;
             }
 

@@ -158,7 +158,7 @@ export async function persistGeneration(
       lineage: g.lineage,
       score: g.score.total,
       metrics: JSON.parse(
-        JSON.stringify({ score: g.score, gameMetrics: g.metrics }),
+        JSON.stringify({ score: g.score, gameMetrics: g.metrics, decisionId: g.decisionId }),
       ),
       position: i,
     }));
@@ -222,6 +222,7 @@ export async function fetchRecentGenerations(
             coverage: 0.5,
           },
           metrics: g.metrics?.gameMetrics ?? {},
+          decisionId: g.metrics?.decisionId,
         })),
       });
     }

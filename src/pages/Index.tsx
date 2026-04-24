@@ -334,6 +334,9 @@ const Index = () => {
                 {result.batches.map((b) => (
                   <BatchSection key={b.name} batch={b} />
                 ))}
+                <div className="mt-8">
+                  <RealConferralPanel />
+                </div>
               </div>
               <aside className="space-y-6">
                 <TerritoryHeatmap result={result} />
@@ -341,7 +344,6 @@ const Index = () => {
                 {recommendations.length > 0 && (
                   <RecommendationsPanel items={recommendations} />
                 )}
-                <RealConferralPanel />
                 <BacktestPanel currentGeneration={result} />
                 <EvolutionaryBacktestPanel scenario={scenario} />
                 {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
