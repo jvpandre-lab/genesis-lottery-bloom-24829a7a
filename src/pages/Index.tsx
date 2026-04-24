@@ -89,7 +89,7 @@ const Index = () => {
             "[GENERATE] Fallback: usando fetchRecentDraws (pode incluir dados históricos)",
           );
         }
-      } catch {}
+      } catch { }
       try {
         recentGens = await fetchRecentGenerations(10);
         console.log(
@@ -103,12 +103,15 @@ const Index = () => {
         );
       }
       await new Promise((r) => setTimeout(r, 30));
+      const targetContestNumber = recent.length > 0 ? recent[0].contestNumber + 1 : undefined;
+
       const res = await generate({
         count,
         scenario,
         recentDraws: recent,
         recentResults: recentGens,
         twoBrains: true,
+        targetContestNumber,
       });
       const { diagnostics, ...gen } = res;
       setResult(gen as GenerationResult);
@@ -337,6 +340,7 @@ const Index = () => {
                 {recommendations.length > 0 && (
                   <RecommendationsPanel items={recommendations} />
                 )}
+                <RealConferralPanel />
                 <BacktestPanel currentGeneration={result} />
                 <EvolutionaryBacktestPanel scenario={scenario} />
                 {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
