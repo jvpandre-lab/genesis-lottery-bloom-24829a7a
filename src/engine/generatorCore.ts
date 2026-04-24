@@ -235,6 +235,7 @@ export async function generate(
   console.log(`[ARBITER] decisionsBefore=${decisionsBefore}`);
 
   const structuralBias = arbiterMemory.getStructuralBias(scenario);
+  const adaptiveInstinct = arbiterMemory.getAdaptiveInstinct(input.targetContestNumber ?? undefined);
 
   // ── Pressão adaptativa ─────────────────────────────────────────────────
   globalPressure.load();
@@ -375,6 +376,8 @@ export async function generate(
         usage: effectiveUsage,
         reference: [],
         recentDraws: recent as Dezena[][],
+        structuralBias,
+        adaptiveInstinct,
         // P4 FIX: passa preGenWeightModifiers para o GA via ctx
         preGenWeightModifiers: disableEngines.preGenEcosystem
           ? undefined

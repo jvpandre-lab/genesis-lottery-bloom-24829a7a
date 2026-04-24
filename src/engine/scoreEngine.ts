@@ -33,6 +33,9 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
   let ab = antiBiasScore(numbers, m) * recencyPenalty(numbers, ctx.recentDraws);
   let cl = clusterPenalty(m);
 
+  // Peso do Instinto sobre as pressões do bias estrutural (0.2 em RECOVERY, 1.0 em CONSERVATIVE)
+  const instinctBiasWeight = ctx.adaptiveInstinct ? ctx.adaptiveInstinct.structuralBiasWeight : 1.0;
+
   let structuralAffinity = 0;
   if (ctx.structuralBias) {
     // 1. Modificador Numérico (Number Pressure) & Geográfico (Zonas)
@@ -41,12 +44,9 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
     const zoneCounts: Record<string, number> = {};
 
     for (const num of numbers) {
-      // Track numbers
       if (ctx.structuralBias.numberPressure[num]) {
         numMod += ctx.structuralBias.numberPressure[num];
       }
-
-      // Track Zones (Z0 a Z9)
       const z = num === 0 ? "Z0" : "Z" + Math.floor(Math.min(99, Math.max(0, num)) / 10);
       zoneCounts[z] = (zoneCounts[z] || 0) + 1;
       if (ctx.structuralBias.territoryPressure[z]) {
@@ -54,24 +54,26 @@ export function scoreGame(numbers: Dezena[], ctx: ScoreContext, metrics?: GameMe
       }
     }
 
-    // Limitador rígido duplo (clampar variação total evitando domination absoluto)
-    structuralAffinity += Math.max(-0.15, Math.min(0.15, numMod / 20));
-    structuralAffinity += Math.max(-0.10, Math.min(0.10, terrMod / 35));
+    // Peso do instinto modera as pressões aprendidas (RECOVERY suprime viés antigo)
+    structuralAffinity += Math.max(-0.15, Math.min(0.15, numMod / 20)) * instinctBiasWeight;
+    structuralAffinity += Math.max(-0.10, Math.min(0.10, terrMod / 35)) * instinctBiasWeight;
 
-    // 2. Modificador de Estruturas Físicas
-    if (ctx.structuralBias.diversityPush > 0) {
-      // amplifica levemente o score da diversidade
-      div = Math.min(1.0, div * (1 + ctx.structuralBias.diversityPush * 0.4));
+    // 2. Modificadores de estrutura: combinam bias + impulso instintivo
+    const extraDiversity = ctx.adaptiveInstinct ? ctx.adaptiveInstinct.diversityBoost : 0;
+    const combinedDiversityPush = ctx.structuralBias.diversityPush + extraDiversity;
+    if (combinedDiversityPush > 0) {
+      div = Math.min(1.0, div * (1 + combinedDiversityPush * 0.4));
     }
-    if (ctx.structuralBias.antiClusterPush > 0) {
-      // cl (quanto mais alto, menos clusters ruins). Punir concentrações por excesso na mesma ZONA e por proximidade.
+
+    const extraAntiCluster = ctx.adaptiveInstinct ? ctx.adaptiveInstinct.antiClusterBoost : 0;
+    const combinedClusterPush = ctx.structuralBias.antiClusterPush + extraAntiCluster;
+    if (combinedClusterPush > 0) {
       let maxConcentration = 0;
       for (const k in zoneCounts) maxConcentration = Math.max(maxConcentration, zoneCounts[k]);
-
       if (maxConcentration > 8) {
-        cl = Math.max(0, cl - ctx.structuralBias.antiClusterPush * 0.6); // forte penalty pro candidate superlotado
+        cl = Math.max(0, cl - combinedClusterPush * 0.6);
       } else {
-        cl = Math.max(0, cl - ctx.structuralBias.antiClusterPush * 0.3); // penalty leve se nao ta superlotado mas tem clusters adjacentes
+        cl = Math.max(0, cl - combinedClusterPush * 0.3);
       }
     }
   }
