@@ -346,6 +346,8 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
             let bestHits = 0, worstHits = Infinity;
             let goodCount = 0, neutralCount = 0, badCount = 0;
 
+            let gameErrors = 0;
+
             for (let i = 0; i < games.length; i++) {
                 const game = games[i];
 
@@ -358,50 +360,60 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                     continue;
                 }
 
-                const hits = countHits(game.numbers, resolvedDraw.numbers);
-                const hitNumbers = game.numbers.filter((n) => (resolvedDraw.numbers as number[]).includes(n));
-                const quality: "good" | "neutral" | "bad" = hits >= 11 ? "good" : hits >= 9 ? "neutral" : "bad";
+                // try/catch individual: erro em 1 jogo não interrompe os outros
+                try {
+                    const hits = countHits(game.numbers, resolvedDraw.numbers);
+                    const hitNumbers = game.numbers.filter((n) => (resolvedDraw.numbers as number[]).includes(n));
+                    const quality: "good" | "neutral" | "bad" = hits >= 11 ? "good" : hits >= 9 ? "neutral" : "bad";
 
-                const result = arbiterMemory.applyLearning(game.decisionId, hits, resolvedDraw.contestNumber);
+                    const result = arbiterMemory.applyLearning(game.decisionId, hits, resolvedDraw.contestNumber);
 
-                console.log(
-                    `[ARBITER LEARNING RESULT]\n` +
-                    `  decisionId: ${game.decisionId}\n` +
-                    `  hits:       ${hits}\n` +
-                    `  quality:    ${quality}\n` +
-                    `  applied:    ${result.applied}\n` +
-                    `  reason:     ${result.reason}`,
-                );
+                    console.log(
+                        `[ARBITER LEARNING RESULT]\n` +
+                        `  decisionId: ${game.decisionId}\n` +
+                        `  hits:       ${hits}\n` +
+                        `  quality:    ${quality}\n` +
+                        `  applied:    ${result.applied}\n` +
+                        `  reason:     ${result.reason}`,
+                    );
 
-                let outcome: GameResult["outcome"];
-                if (result.applied) {
-                    outcome = "learned";
-                    learned++;
-                    if (quality === "good") goodCount++;
-                    else if (quality === "neutral") neutralCount++;
-                    else badCount++;
-                } else if (result.reason === "duplicate") {
-                    outcome = "duplicate";
-                    duplicate++;
-                    if (quality === "good") goodCount++;
-                    else if (quality === "neutral") neutralCount++;
-                    else badCount++;
-                } else {
-                    outcome = "blocked";
-                    blocked++;
+                    let outcome: GameResult["outcome"];
+                    if (result.applied) {
+                        outcome = "learned";
+                        learned++;
+                        if (quality === "good") goodCount++;
+                        else if (quality === "neutral") neutralCount++;
+                        else badCount++;
+                    } else if (result.reason === "duplicate") {
+                        outcome = "duplicate";
+                        duplicate++;
+                        if (quality === "good") goodCount++;
+                        else if (quality === "neutral") neutralCount++;
+                        else badCount++;
+                    } else {
+                        outcome = "blocked";
+                        blocked++;
+                    }
+
+                    if (outcome !== "blocked") {
+                        totalHitsForAvg += hits;
+                        hitsCount++;
+                        if (hits > bestHits) bestHits = hits;
+                        if (hits < worstHits) worstHits = hits;
+                    }
+
+                    gameResults.push({
+                        index: i, numbers: game.numbers, lineage: game.lineage,
+                        decisionId: game.decisionId, hits, hitNumbers, quality, outcome,
+                    });
+                } catch (gameErr: any) {
+                    gameErrors++;
+                    console.error(`[ARBITER LEARNING] erro no jogo ${i} (decisionId=${game.decisionId}):`, gameErr);
+                    gameResults.push({
+                        index: i, numbers: game.numbers, lineage: game.lineage,
+                        decisionId: game.decisionId, hits: 0, hitNumbers: [], quality: null, outcome: "blocked",
+                    });
                 }
-
-                if (outcome !== "blocked") {
-                    totalHitsForAvg += hits;
-                    hitsCount++;
-                    if (hits > bestHits) bestHits = hits;
-                    if (hits < worstHits) worstHits = hits;
-                }
-
-                gameResults.push({
-                    index: i, numbers: game.numbers, lineage: game.lineage,
-                    decisionId: game.decisionId, hits, hitNumbers, quality, outcome,
-                });
             }
 
             const avgHits = hitsCount > 0 ? totalHitsForAvg / hitsCount : 0;
@@ -426,14 +438,12 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                 `  blocked:           ${blocked}`,
             );
 
-            // Classificar status final
+            // Status final: learned > 0 nunca é sobrescrito por erro posterior
             const allAlreadyDone = duplicate + noDecision + blocked === games.length;
-            if (allAlreadyDone) {
-                setAutoStatus("already-learned");
-            } else if (learned > 0) {
+            if (learned > 0) {
                 setAutoStatus("learned");
-            } else if (noDecision === games.length) {
-                setAutoStatus("partial");
+            } else if (allAlreadyDone && duplicate > 0) {
+                setAutoStatus("already-learned");
             } else {
                 setAutoStatus("partial");
             }
@@ -448,7 +458,15 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
             }
 
             console.log(
-                `[AUTO LEARNING] concurso=${draw.contestNumber} learned=${learned} duplicate=${duplicate} blocked=${blocked} noDecision=${noDecision}`,
+                `[AUTO CONFERRAL SAFE]\n` +
+                `  resolvedDraw:  ${resolvedDraw.contestNumber}\n` +
+                `  mode:          ${drawMode}\n` +
+                `  totalGames:    ${games.length}\n` +
+                `  learned:       ${learned}\n` +
+                `  duplicates:    ${duplicate}\n` +
+                `  noDecision:    ${noDecision}\n` +
+                `  blocked:       ${blocked}\n` +
+                `  gameErrors:    ${gameErrors}`,
             );
         } catch (e: any) {
             console.error("[AUTO LEARNING] erro:", e);
