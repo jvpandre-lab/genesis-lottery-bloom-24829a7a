@@ -25,6 +25,7 @@ import {
   fetchRecentDraws,
   fetchRecentGenerations,
   fetchRecentRealDraws,
+  getLatestContestNumber,
   isBootstrapOnly,
   persistGeneration,
 } from "@/services/storageService";
@@ -104,7 +105,12 @@ const Index = () => {
         );
       }
       await new Promise((r) => setTimeout(r, 30));
-      const targetContestNumber = recent.length > 0 ? recent[0].contestNumber + 1 : undefined;
+      // Target = maior contest da base + 1 (fonte autoritativa, nunca recent[0])
+      const latest = await getLatestContestNumber();
+      const fallbackLatest = recent.length > 0 ? recent[0].contestNumber : null;
+      const baseLatest = Math.max(latest ?? 0, fallbackLatest ?? 0);
+      const targetContestNumber = baseLatest > 0 ? baseLatest + 1 : undefined;
+      console.log("[GENERATE] latestContest=", latest, "target=", targetContestNumber);
 
       const res = await generate({
         count,
@@ -335,7 +341,7 @@ const Index = () => {
                   <BatchSection key={b.name} batch={b} />
                 ))}
                 <div className="mt-8">
-                  <RealConferralPanel />
+                  <RealConferralPanel currentResult={result} />
                 </div>
               </div>
               <aside className="space-y-6">
