@@ -466,14 +466,18 @@ export const arbiterMemory = {
    * @param hits        Real number of matched numbers in the draw
    * @param contestNumber  Contest number (logged for traceability and validated against target)
    */
-  applyLearning(decisionId: string, hits: number, contestNumber: number): void {
+  applyLearning(
+    decisionId: string,
+    hits: number,
+    contestNumber: number,
+  ): { applied: boolean; reason: "learned" | "duplicate" | "no-decision" | "blocked" } {
     const decision = state.decisions.find((d) => d.id === decisionId);
 
     if (!decision) {
       console.warn(
         `[ARBITER LEARNING] decisionId ${decisionId} not found in memory`,
       );
-      return;
+      return { applied: false, reason: "no-decision" };
     }
 
     // --- Protection Rule: Simulated Conference Guard ---
@@ -500,7 +504,7 @@ export const arbiterMemory = {
       }`,
     );
 
-    if (!accepted) return;
+    if (!accepted) return { applied: false, reason: "blocked" };
 
     // --- Idempotency guard (persistent-safe) ---
     if (decision.outcomeHits !== undefined) {
@@ -510,7 +514,7 @@ export const arbiterMemory = {
         ` | contestNumber: ${contestNumber}` +
         ` | already evaluated with hits=${decision.outcomeHits} quality=${decision.outcomeQuality}`,
       );
-      return;
+      return { applied: false, reason: "duplicate" };
     }
 
     const quality = classifyQuality(hits);
@@ -556,6 +560,7 @@ export const arbiterMemory = {
       `  normalizedDelta: ${normalizedDelta.toFixed(6)}\n` +
       `  biasAfter:     ${biasAfter.toFixed(6)}`,
     );
+    return { applied: true, reason: "learned" };
   },
 
   getBrainBias(
