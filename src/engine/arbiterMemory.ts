@@ -733,18 +733,52 @@ export const arbiterMemory = {
       output.lineagePreference[lin] = clamp(balance, -0.2, 0.2);
     });
 
-    // Compilation - Territory
+    // Compilation - Territory (Diminishing Returns & Dominance Control)
     let boostedZones = 0;
     let penalizedZones = 0;
+    let totalPositivePressure = 0;
+    let dominanceDetected = false;
+    const rawTerritory: Record<string, number> = {};
+
     Object.keys(zoneTracker).forEach((z) => {
       const meta = zoneTracker[z];
-      if (meta.count < 2) return;
-      const balance = (meta.goodScale * 0.15) - (meta.badScale * 0.1);
-      if (balance > 0.005) {
-        output.territoryPressure[z] = clamp(balance, 0, 0.06);
+      if (meta.count < 2) return; // Anti-overfitting
+
+      // Diminuindo retornos para impedir saturação linear
+      const saturatedGood = Math.log10(1 + meta.goodScale) * 0.15;
+      const saturatedBad = Math.log10(1 + meta.badScale) * 0.1;
+      const balance = saturatedGood - saturatedBad;
+
+      rawTerritory[z] = balance;
+      if (balance > 0) totalPositivePressure += balance;
+    });
+
+    // Detecção de Dominância
+    const sortedZones = Object.entries(rawTerritory).sort((a, b) => b[1] - a[1]);
+    if (sortedZones.length > 0 && totalPositivePressure > 0) {
+      const topZoneWeight = sortedZones[0][1] / totalPositivePressure;
+      if (topZoneWeight > 0.45) {
+        dominanceDetected = true;
+        // Equilíbrio Forçado
+        aggDiversityModifier += 0.5 * MAX_WINDOW;
+      }
+    }
+
+    // Normalização Global (Limite total = 25% * 0.10 base da engine = 0.025 global distribuido? Não, usaremos 0.25 como teto da soma e INDIVIDUAL_LIMIT)
+    const LIMIT_TOTAL = 0.25;
+    const normFactorPos = totalPositivePressure > LIMIT_TOTAL ? LIMIT_TOTAL / totalPositivePressure : 1.0;
+    const INDIVIDUAL_LIMIT = 0.035;
+
+    const clampedZonesInfo: string[] = [];
+    Object.keys(rawTerritory).forEach((z) => {
+      const b = rawTerritory[z];
+      if (b > 0.002) {
+        const finalP = clamp(b * normFactorPos, 0, INDIVIDUAL_LIMIT);
+        output.territoryPressure[z] = finalP;
         boostedZones++;
-      } else if (balance < -0.005) {
-        output.territoryPressure[z] = clamp(balance, -0.09, 0);
+        if (finalP >= INDIVIDUAL_LIMIT) clampedZonesInfo.push(`${z}: capped`);
+      } else if (b < -0.002) {
+        output.territoryPressure[z] = clamp(b, -0.06, 0);
         penalizedZones++;
       }
     });
@@ -756,11 +790,15 @@ export const arbiterMemory = {
     output.explorationPush = normAgg(aggDiversityModifier * 0.8);
 
     console.log(
-      `[TERRITORY BIAS]\n` +
-      `  scenario:        ${scenario}\n` +
-      `  zonesBoosted:    ${boostedZones}\n` +
-      `  zonesPenalized:  ${penalizedZones}\n` +
-      `  antiClusterPush: ${output.antiClusterPush.toFixed(3)}\n`
+      `[TERRITORY CONTROL]\n` +
+      `  scenario:           ${scenario}\n` +
+      `  dominanceDetected:  ${dominanceDetected}\n` +
+      `  totalPositive:      ${totalPositivePressure.toFixed(4)}\n` +
+      `  normFactor:         ${normFactorPos.toFixed(4)}\n` +
+      `  clampedZones:       ${clampedZonesInfo.length > 0 ? clampedZonesInfo.join(', ') : 'none'}\n` +
+      `  boostedZonesCount:  ${boostedZones}\n` +
+      `  penalizedZonesCount:${penalizedZones}\n` +
+      `  antiClusterPush:    ${output.antiClusterPush.toFixed(3)}\n`
     );
 
     return output;
