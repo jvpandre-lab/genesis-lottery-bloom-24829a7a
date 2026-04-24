@@ -1,4 +1,4 @@
-import { Dezena, ScoreBreakdown, GameMetrics, LineageId, StructuralBias } from "./lotteryTypes";
+import { Dezena, ScoreBreakdown, GameMetrics, LineageId, StructuralBias, AdaptiveInstinct } from "./lotteryTypes";
 import { coverageScore, gridCoverageScore, distributionScore, clusterPenalty, territoryScore, computeMetrics } from "./coverageEngine";
 import { antiBiasScore, recencyPenalty } from "./antiBiasEngine";
 import { diversityVsSet } from "./diversityEngine";
@@ -9,6 +9,7 @@ export interface ScoreContext {
   recentDraws: Dezena[][];   // últimas N draws para anti-recency
   lineage: LineageId;
   structuralBias?: StructuralBias; // pressões contextuais mapeadas pela experiência do Arbiter
+  adaptiveInstinct?: AdaptiveInstinct; // limitadores orgânicos e impulsos fisiológicos
 }
 
 /** Pesos por linhagem — cada linhagem otimiza diferentes dimensões. */

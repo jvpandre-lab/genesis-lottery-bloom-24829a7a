@@ -150,6 +150,25 @@ export interface StructuralBias {
   conservativePush: number;
 }
 
+export type InstinctMode = "conservative" | "balanced" | "exploration" | "recovery";
+
+export interface SystemHealth {
+  healthScore: number; // 0..1
+  state: "healthy" | "warning" | "critical";
+  avgHits: number;
+  lowHitsRate: number; // proporção < 10 acertos 
+  diversityScore: number;
+}
+
+export interface AdaptiveInstinct {
+  mode: InstinctMode;
+  mutationMultiplier: number;
+  diversityBoost: number;
+  antiClusterBoost: number;
+  structuralBiasWeight: number; // multiplicador aplicável nas pressões do território e números
+  explorationWeight: number;
+}
+
 export interface GameMetrics {
   evenCount: number;
   oddCount: number;

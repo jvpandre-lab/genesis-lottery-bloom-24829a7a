@@ -3,7 +3,7 @@ import {
   persistArbiterDecision,
   updateArbiterDecisionOutcome,
 } from "@/services/storageService";
-import { BatchName, LineageId, Scenario } from "./lotteryTypes";
+import { BatchName, LineageId, Scenario, SystemHealth, AdaptiveInstinct, InstinctMode } from "./lotteryTypes";
 
 const STORAGE_KEY = "arbiterMemory.v1";
 const MAX_DECISIONS = 400;
@@ -83,6 +83,26 @@ const DEFAULT_STATE: ArbiterMemoryState = {
   errors: {},
   memoryBias: createDefaultMemoryBias(),
   updatedAt: new Date().toISOString(),
+};
+
+interface InstinctRuntimeState {
+  lastTargetContest?: number;
+  currentMode: InstinctMode;
+  cyclesInMode: number;
+  smoothedInstinct: AdaptiveInstinct;
+}
+
+const instinctRuntime: InstinctRuntimeState = {
+  currentMode: "balanced",
+  cyclesInMode: 0,
+  smoothedInstinct: {
+    mode: "balanced",
+    mutationMultiplier: 1.0,
+    diversityBoost: 0,
+    antiClusterBoost: 0,
+    structuralBiasWeight: 1.0,
+    explorationWeight: 0,
+  }
 };
 
 function hasLocalStorage(): boolean {
@@ -445,6 +465,124 @@ export const arbiterMemory = {
     });
 
     saveState(state);
+  },
+
+  /**
+   * Avalia a saúde global do sistema olhando as últimas 20 CONFERÊNCIAS reais únicas.
+   */
+  evaluateSystemHealth(): SystemHealth {
+    const hitsExtracted = state.decisions.filter(d => d.outcomeHits !== undefined);
+
+    // Group decisions por concurso alvo real (só conta jogos de conferências passadas verídicas)
+    const contestGroups: Record<number, number[]> = {};
+    hitsExtracted.forEach(d => {
+      const key = d.context.targetContestNumber || 0;
+      if (!contestGroups[key]) contestGroups[key] = [];
+      contestGroups[key].push(d.outcomeHits!);
+    });
+
+    const contestKeys = Object.keys(contestGroups).map(Number).sort((a, b) => a - b).slice(-20);
+
+    let totalHits = 0;
+    let totalBets = 0;
+    let lowHits = 0;
+
+    contestKeys.forEach(k => {
+      const arrayHits = contestGroups[k];
+      arrayHits.forEach(h => {
+        totalHits += h;
+        totalBets++;
+        if (h < 10) lowHits++;
+      });
+    });
+
+    const avgHits = totalBets > 0 ? totalHits / totalBets : 0;
+    const lowHitsRate = totalBets > 0 ? lowHits / totalBets : 0;
+
+    let stateResult: "healthy" | "warning" | "critical" = "warning";
+    if (avgHits >= 11) stateResult = "healthy";
+    else if (avgHits < 9 || lowHitsRate > 0.40) stateResult = "critical";
+
+    return {
+      healthScore: avgHits / 20.0,
+      state: stateResult,
+      avgHits,
+      lowHitsRate,
+      diversityScore: 0.5 // Baseline
+    };
+  },
+
+  /**
+   * Computa e suaviza os multipliers de Instinto Baseados na Saúde Geral.
+   */
+  getAdaptiveInstinct(targetContestNumber?: number): AdaptiveInstinct {
+    const health = this.evaluateSystemHealth();
+    const hitsExtracted = state.decisions.filter(d => d.outcomeHits !== undefined);
+    const uniqueContests = new Set(hitsExtracted.map(d => d.context.targetContestNumber || 0));
+
+    let rawMode: InstinctMode = "balanced";
+
+    // AMOSTRA MINIMA (< 10 Conferências Reais = Force Balanced)
+    if (uniqueContests.size < 10) {
+      rawMode = "balanced";
+    } else {
+      // Transition Rules
+      if (health.state === "critical") rawMode = "recovery";
+      else if (health.state === "healthy") rawMode = "conservative";
+      else rawMode = "balanced";
+    }
+
+    // PROTEÇÃO CONTRA RECOVERY PERMANENTE
+    if (instinctRuntime.currentMode === "recovery" && instinctRuntime.cyclesInMode > 5) {
+      rawMode = "exploration"; // Força uma saída para desestagnar
+    }
+
+    // Geração de Limits e Targets Instintivos brutos
+    let rawInstinct: AdaptiveInstinct = { mode: "balanced", mutationMultiplier: 1.0, diversityBoost: 0.3, antiClusterBoost: 0.3, structuralBiasWeight: 0.8, explorationWeight: 0.3 };
+
+    if (rawMode === "recovery") {
+      rawInstinct = { mode: "recovery", mutationMultiplier: 2.5, diversityBoost: 0.8, antiClusterBoost: 1.0, structuralBiasWeight: 0.2, explorationWeight: 1.0 };
+    } else if (rawMode === "conservative") {
+      rawInstinct = { mode: "conservative", mutationMultiplier: 0.5, diversityBoost: 0.1, antiClusterBoost: 0.2, structuralBiasWeight: 1.0, explorationWeight: 0.1 };
+    } else if (rawMode === "exploration") {
+      rawInstinct = { mode: "exploration", mutationMultiplier: 1.5, diversityBoost: 0.6, antiClusterBoost: 0.5, structuralBiasWeight: 0.5, explorationWeight: 0.8 };
+    }
+
+    // Interpolação (Suavização Progressiva p/ evitar saltos bruscos)
+    // O ciclo só passa se avançamos de contestNumber p/ previnir incrementos de UI irrelevantes
+    if (targetContestNumber && instinctRuntime.lastTargetContest !== targetContestNumber) {
+      instinctRuntime.lastTargetContest = targetContestNumber;
+      if (instinctRuntime.currentMode === rawMode) {
+        instinctRuntime.cyclesInMode++;
+      } else {
+        instinctRuntime.currentMode = rawMode;
+        instinctRuntime.cyclesInMode = 1;
+      }
+
+      const s = instinctRuntime.smoothedInstinct;
+      const speed = 0.3; // Constante de Interpolacao Suave
+
+      s.mode = rawMode;
+      s.mutationMultiplier += (rawInstinct.mutationMultiplier - s.mutationMultiplier) * speed;
+      s.diversityBoost += (rawInstinct.diversityBoost - s.diversityBoost) * speed;
+      s.antiClusterBoost += (rawInstinct.antiClusterBoost - s.antiClusterBoost) * speed;
+      s.structuralBiasWeight += (rawInstinct.structuralBiasWeight - s.structuralBiasWeight) * speed;
+      s.explorationWeight += (rawInstinct.explorationWeight - s.explorationWeight) * speed;
+
+      console.log(
+        `[INSTINCT STATE]\n` +
+        `  mode:          ${s.mode} (cycles: ${instinctRuntime.cyclesInMode})\n` +
+        `  healthScore:   ${health.healthScore.toFixed(3)}\n` +
+        `  avgHits:       ${health.avgHits.toFixed(2)}\n` +
+        `  lowHitsRate:   ${(health.lowHitsRate * 100).toFixed(1)}%\n` +
+        `\n[INSTINCT ACTION]\n` +
+        `  mutationMult:  ${s.mutationMultiplier.toFixed(2)}\n` +
+        `  biasWeight:    ${s.structuralBiasWeight.toFixed(2)}\n` +
+        `  antiCluster:   ${s.antiClusterBoost.toFixed(2)}`
+      );
+    }
+
+    return instinctRuntime.smoothedInstinct;
   },
 
   /**
