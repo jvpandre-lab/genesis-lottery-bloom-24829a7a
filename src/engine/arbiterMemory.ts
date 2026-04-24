@@ -105,6 +105,15 @@ const instinctRuntime: InstinctRuntimeState = {
   }
 };
 
+// ── Aprendizado Contínuo (Simulação Controlada) ─────────────────────────────────
+// temporaryBias: influencia geração seguinte MAS NÃO é gravado no banco.
+// Peso: 30% do memoryBias real. Decay rápido (60% ao trocar concurso de simulação).
+// Limpo automaticamente quando aprendizado real é aplicado.
+let temporaryBiasState: Record<Scenario, number> = {
+  conservative: 0, hybrid: 0, aggressive: 0, exploratory: 0,
+};
+let softLastContest = 0; // rastreia último concurso de simulação para decay
+
 function hasLocalStorage(): boolean {
   return (
     typeof window !== "undefined" && typeof window.localStorage !== "undefined"
@@ -924,6 +933,76 @@ export const arbiterMemory = {
     return { applied: true, reason: "learned" };
   },
 
+  // ── Métodos do Aprendizado Contínuo ────────────────────────────────────────
+
+  /**
+   * Aprendizado contínuo (modo simulação controlada).
+   *
+   * Diferenças fundamentais de applyLearning:
+   * - NÃO grava outcome_hits no banco
+   * - NÃO altera memoryBias permanente
+   * - NÃO altera arbiter_decisions
+   * - Atualiza apenas temporaryBiasState (volátil, in-memory)
+   *
+   * Guard: se outcomeHits já existe (aprendizado real aplicado), não sobrescreve.
+   */
+  applySoftLearning(
+    decisionId: string,
+    hits: number,
+    contestNumber: number,
+  ): { applied: boolean; reason: string } {
+    const decision = state.decisions.find((d) => d.id === decisionId);
+    if (!decision) return { applied: false, reason: "no-decision" };
+
+    // Não aplica se aprendizado real já existe
+    if (decision.outcomeHits !== undefined) return { applied: false, reason: "already-real" };
+
+    const quality = classifyQuality(hits);
+    const scenario = decision.context.scenario;
+
+    // Decay quando muda de concurso de simulação (descarte parcial do ciclo anterior)
+    if (softLastContest !== 0 && softLastContest !== contestNumber) {
+      temporaryBiasState[scenario] = temporaryBiasState[scenario] * 0.6;
+    }
+    softLastContest = contestNumber;
+
+    // Delta reduzido a 30% do peso real
+    const rawDelta = computeRawDelta(quality, hits);
+    const normFactor = Math.max(1, state.decisions.length / 20);
+    const softDelta = (rawDelta * 0.3) / normFactor;
+
+    temporaryBiasState[scenario] = clamp(
+      temporaryBiasState[scenario] + softDelta,
+      -0.25, // metade do clamp do memoryBias
+      0.25,
+    );
+
+    console.log(
+      `[SOFT LEARNING]\n` +
+      `  decisionId:   ${decisionId}\n` +
+      `  contest:      ${contestNumber} (histórico recente)\n` +
+      `  hits:         ${hits} quality=${quality}\n` +
+      `  scenario:     ${scenario}\n` +
+      `  softBias:     ${temporaryBiasState[scenario].toFixed(6)} (NÃO persistido)`,
+    );
+    return { applied: true, reason: "soft-learned" };
+  },
+
+  /** Retorna o bias temporário atual de um cenário. */
+  getTemporaryBias(scenario: Scenario): number {
+    return temporaryBiasState[scenario];
+  },
+
+  /**
+   * Limpa o temporaryBias após aprendizado real ser aplicado.
+   * Garante que simulação não contamina o estado pós-aprendizado real.
+   */
+  clearTemporaryBias(): void {
+    temporaryBiasState = { conservative: 0, hybrid: 0, aggressive: 0, exploratory: 0 };
+    softLastContest = 0;
+    console.log("[SOFT LEARNING] temporaryBias limpo — aprendizado real consolidado");
+  },
+
   getBrainBias(
     brain: "A" | "B",
     scenario: Scenario,
@@ -942,10 +1021,14 @@ export const arbiterMemory = {
     if (balanceA < 0.35 && brain === "A") bias += 0.02;
     if (selfRate < 0.4 && otherRate > 0.6) bias -= 0.04;
 
-    // Incorporate real outcome learning bias (halved to be additive, not dominant)
+    // Aprendizado real: halved to be additive, not dominant
     const learnedBias = state.memoryBias[scenario] * 0.5;
-    // Brain A benefits from positive bias, B benefits from negative
+    // Brain A beneficia de bias positivo, B de negativo
     bias += brain === "A" ? learnedBias : -learnedBias;
+
+    // Aprendizado contínuo: 30% do peso do aprendizado real (volátil)
+    const softBias = temporaryBiasState[scenario] * 0.15;
+    bias += brain === "A" ? softBias : -softBias;
 
     return clamp(bias, -0.35, 0.35);
   },

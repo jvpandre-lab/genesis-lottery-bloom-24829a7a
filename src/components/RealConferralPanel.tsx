@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import {
     fetchRecentDraws,
     fetchRecentGenerations,
+    fetchRecentRealDraws,
     getLatestContestNumber,
     fetchDrawByContest,
 } from "@/services/storageService";
@@ -22,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Tipos locais ──────────────────────────────────────────────────────────────
 
-type AutoStatus = "idle" | "checking" | "pending" | "learned" | "already-learned" | "partial" | "error";
+type AutoStatus = "idle" | "checking" | "pending" | "continuous" | "learned" | "already-learned" | "partial" | "error";
 
 interface GameResult {
     index: number;
@@ -190,6 +191,7 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
     const [organism, setOrganism] = useState<OrganismSnapshot | null>(null);
     const [showGames, setShowGames] = useState(false);
     const [showOrganism, setShowOrganism] = useState(false);
+    const [softInfo, setSoftInfo] = useState<{ contestCount: number; softApplied: number } | null>(null);
 
     // Estado do fluxo manual (preservado)
     const [busy, setBusy] = useState(false);
@@ -287,11 +289,32 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
             // Verificar se concurso-alvo existe no histórico
             const draw = await fetchDrawByContest(targetContest);
             if (!draw) {
-                setAutoStatus("pending");
+                // ── MODO CONTÍNUO: concurso ainda não existe, evoluir com histórico recente ──
+                setSoftInfo(null);
+                try {
+                    const recentDraws = await fetchRecentRealDraws(10);
+                    let softApplied = 0;
+                    for (const recentDraw of recentDraws) {
+                        for (const game of games) {
+                            if (!game.decisionId) continue;
+                            const hits = countHits(game.numbers, recentDraw.numbers);
+                            const r = arbiterMemory.applySoftLearning(game.decisionId, hits, recentDraw.contestNumber);
+                            if (r.applied) softApplied++;
+                        }
+                    }
+                    setSoftInfo({ contestCount: recentDraws.length, softApplied });
+                    console.log(`[CONTINUOUS LEARNING] ${softApplied} soft-learnings em ${recentDraws.length} concursos recentes (NÃO persistido)`);
+                } catch (e) {
+                    console.warn("[CONTINUOUS LEARNING] falha:", e);
+                }
+                setAutoStatus("continuous");
                 captureOrganism(scenario);
-                console.log(`[AUTO LEARNING] pendente — concurso ${targetContest} ainda não sorteado`);
                 return;
             }
+
+            // Concurso real encontrado — limpar bias temporário antes do aprendizado real
+            arbiterMemory.clearTemporaryBias();
+            setSoftInfo(null);
 
             // Aplicar aprendizado
             const gameResults: GameResult[] = [];
@@ -482,6 +505,7 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
         idle: { icon: <Activity className="h-4 w-4" />, label: "Aguardando geração...", cls: "text-muted-foreground" },
         checking: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: "Verificando concurso alvo...", cls: "text-blue-400" },
         pending: { icon: <Clock className="h-4 w-4" />, label: `Aguardando concurso #${targetContest ?? "—"}`, cls: "text-amber-400" },
+        continuous: { icon: <Brain className="h-4 w-4 animate-pulse" />, label: `Evolução ativa (modo contínuo) — aguardando #${targetContest ?? "—"}`, cls: "text-purple-400" },
         learned: { icon: <CheckCircle2 className="h-4 w-4" />, label: `Aprendizado automático — Concurso #${report?.contestNumber ?? "—"}`, cls: "text-emerald-400" },
         "already-learned": { icon: <CheckCircle2 className="h-4 w-4" />, label: `Aprendizado já aplicado — Concurso #${report?.contestNumber ?? "—"}`, cls: "text-emerald-300/70" },
         partial: { icon: <AlertTriangle className="h-4 w-4" />, label: `Aprendizado parcial — ${report?.learned ?? 0} aprendidos`, cls: "text-amber-400" },
@@ -520,7 +544,22 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
                 <span>{sc.label}</span>
             </div>
 
-            {/* Resumo do relatório */}
+            {/* Detalhes do modo contínuo */}
+            {autoStatus === "continuous" && softInfo && (
+                <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 space-y-1.5 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-purple-400 font-medium">
+                        <Brain className="h-3.5 w-3.5 animate-pulse" />
+                        Evolução ativa — aprendizado contínuo em execução
+                    </div>
+                    <div className="text-muted-foreground space-y-0.5">
+                        <div>Aprendizado real: <span className="text-amber-400">aguardando concurso #{targetContest}</span></div>
+                        <div>Simulações ativas: <span className="text-purple-300 font-mono">{softInfo.contestCount} concursos recentes</span></div>
+                        <div>Soft-learnings aplicados: <span className="text-purple-300 font-mono">{softInfo.softApplied}</span></div>
+                        <div className="text-muted-foreground/50 text-[9px] pt-0.5">Não persistido · Some ao confirmar concurso real</div>
+                    </div>
+                </div>
+            )}
+
             {report && (autoStatus === "learned" || autoStatus === "already-learned" || autoStatus === "partial") && (
                 <div className="grid grid-cols-3 gap-2 text-[11px]">
                     <div className="glass rounded-lg px-3 py-2 text-center">
