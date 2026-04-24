@@ -178,13 +178,19 @@ export function arbitrateBatch(
         );
 
         // Fórmula v2: 5 dimensões + memória adaptativa
-        const value =
+        const scoreBase =
           c.scoreTotal * 0.4 +
           marginalDiv * 0.25 +
           c.coverageVal * 0.15 +
           c.clusterVal * 0.1 +
-          balanceBonus +
-          memoryBias; // memória do árbitro ajusta preferência A/B
+          balanceBonus;
+
+        const value = scoreBase + memoryBias;
+
+        // VALIDAÇÃO: Telemetria temporal pra comprovar o impacto da equação.
+        if (accepted.length === 0) { // logar apenas a primeira iteracao p/ nao inundar
+          console.log(`[ARBITER DECISION]\nscenario: ${scenario}\nscoreBase: ${scoreBase.toFixed(6)}\nbiasApplied: ${memoryBias.toFixed(6)}\nscoreFinal: ${value.toFixed(6)}\n`);
+        }
 
         return { c, value, marginalDiv };
       })
