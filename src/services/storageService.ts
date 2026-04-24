@@ -96,6 +96,24 @@ export async function fetchAllDraws(): Promise<DrawRecord[]> {
   return all;
 }
 
+/**
+ * Retorna o maior contest_number presente na base.
+ * Garante ordenação DESC e tolera base vazia (retorna null).
+ */
+export async function getLatestContestNumber(): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("lotomania_draws")
+    .select("contest_number")
+    .order("contest_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn("[getLatestContestNumber] erro:", error);
+    return null;
+  }
+  return data?.contest_number ?? null;
+}
+
 export async function countDraws(): Promise<number> {
   const { count, error } = await supabase
     .from("lotomania_draws")
