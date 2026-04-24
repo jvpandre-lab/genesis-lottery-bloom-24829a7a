@@ -519,66 +519,95 @@ export const arbiterMemory = {
     const health = this.evaluateSystemHealth();
     const hitsExtracted = state.decisions.filter(d => d.outcomeHits !== undefined);
     const uniqueContests = new Set(hitsExtracted.map(d => d.context.targetContestNumber || 0));
+    const sampleSize = uniqueContests.size;
 
     let rawMode: InstinctMode = "balanced";
+    let guardrailFired = false;
+    let guardrailReason = "";
 
-    // AMOSTRA MINIMA (< 10 Conferências Reais = Force Balanced)
-    if (uniqueContests.size < 10) {
+    // AJUSTE 1 — AMOSTRA MÍNIMA: < 10 conferências reais = forçar balanced, bloquear recovery
+    if (sampleSize < 10) {
       rawMode = "balanced";
+      guardrailFired = true;
+      guardrailReason = `amostra insuficiente (${sampleSize}/10) → forçado balanced`;
     } else {
-      // Transition Rules
+      // Regras de transição baseadas na saúde real
       if (health.state === "critical") rawMode = "recovery";
       else if (health.state === "healthy") rawMode = "conservative";
       else rawMode = "balanced";
     }
 
-    // PROTEÇÃO CONTRA RECOVERY PERMANENTE
+    // AJUSTE 4 — PROTEÇÃO CONTRA RECOVERY PERMANENTE: após 5 ciclos forçar exploration
     if (instinctRuntime.currentMode === "recovery" && instinctRuntime.cyclesInMode > 5) {
-      rawMode = "exploration"; // Força uma saída para desestagnar
+      rawMode = "exploration";
+      guardrailFired = true;
+      guardrailReason = `recovery permanente detectado (${instinctRuntime.cyclesInMode} ciclos) → forçado exploration`;
     }
 
-    // Geração de Limits e Targets Instintivos brutos
-    let rawInstinct: AdaptiveInstinct = { mode: "balanced", mutationMultiplier: 1.0, diversityBoost: 0.3, antiClusterBoost: 0.3, structuralBiasWeight: 0.8, explorationWeight: 0.3 };
+    // AJUSTE 3 — LIMITADORES de ação: targets brutos com cap absoluto por modo
+    //   mutationMultiplier: [0.4, 2.0]  (não deixa chegar em 3x mesmo em recovery)
+    //   diversityBoost:    [0.0, 0.8]
+    //   antiClusterBoost:  [0.0, 0.9]
+    //   structuralBiasWeight: [0.2, 1.0]  (nunca zera o bias)
+    //   explorationWeight: [0.0, 0.9]
+    const TARGETS: Record<InstinctMode, Omit<AdaptiveInstinct, "mode">> = {
+      balanced: { mutationMultiplier: 1.0, diversityBoost: 0.3, antiClusterBoost: 0.3, structuralBiasWeight: 0.8, explorationWeight: 0.3 },
+      recovery: { mutationMultiplier: 2.0, diversityBoost: 0.8, antiClusterBoost: 0.9, structuralBiasWeight: 0.2, explorationWeight: 0.9 },
+      conservative: { mutationMultiplier: 0.5, diversityBoost: 0.1, antiClusterBoost: 0.2, structuralBiasWeight: 1.0, explorationWeight: 0.1 },
+      exploration: { mutationMultiplier: 1.5, diversityBoost: 0.6, antiClusterBoost: 0.5, structuralBiasWeight: 0.5, explorationWeight: 0.8 },
+    };
+    const target = TARGETS[rawMode];
 
-    if (rawMode === "recovery") {
-      rawInstinct = { mode: "recovery", mutationMultiplier: 2.5, diversityBoost: 0.8, antiClusterBoost: 1.0, structuralBiasWeight: 0.2, explorationWeight: 1.0 };
-    } else if (rawMode === "conservative") {
-      rawInstinct = { mode: "conservative", mutationMultiplier: 0.5, diversityBoost: 0.1, antiClusterBoost: 0.2, structuralBiasWeight: 1.0, explorationWeight: 0.1 };
-    } else if (rawMode === "exploration") {
-      rawInstinct = { mode: "exploration", mutationMultiplier: 1.5, diversityBoost: 0.6, antiClusterBoost: 0.5, structuralBiasWeight: 0.5, explorationWeight: 0.8 };
-    }
+    // AJUSTE 2 — INTENSIDADE PROGRESSIVA: interpolação suave (speed 0.3 por ciclo)
+    // O ciclo avança quando o contestNumber muda OU quando não há contestNumber (usa contador interno)
+    const shouldAdvanceCycle =
+      targetContestNumber != null
+        ? instinctRuntime.lastTargetContest !== targetContestNumber
+        : true; // sem contestNumber: sempre interpola (mas não incrementa ciclos redundantes)
 
-    // Interpolação (Suavização Progressiva p/ evitar saltos bruscos)
-    // O ciclo só passa se avançamos de contestNumber p/ previnir incrementos de UI irrelevantes
-    if (targetContestNumber && instinctRuntime.lastTargetContest !== targetContestNumber) {
-      instinctRuntime.lastTargetContest = targetContestNumber;
+    if (shouldAdvanceCycle) {
+      if (targetContestNumber != null) {
+        instinctRuntime.lastTargetContest = targetContestNumber;
+      }
+
       if (instinctRuntime.currentMode === rawMode) {
         instinctRuntime.cyclesInMode++;
       } else {
+        if (guardrailFired) {
+          console.log(
+            `[INSTINCT GUARDRAIL]\n` +
+            `  reason: ${guardrailReason}\n` +
+            `  action: modo bloqueado de ${instinctRuntime.currentMode} → ${rawMode}`
+          );
+        }
         instinctRuntime.currentMode = rawMode;
         instinctRuntime.cyclesInMode = 1;
       }
 
       const s = instinctRuntime.smoothedInstinct;
-      const speed = 0.3; // Constante de Interpolacao Suave
+      const speed = 0.3;
 
       s.mode = rawMode;
-      s.mutationMultiplier += (rawInstinct.mutationMultiplier - s.mutationMultiplier) * speed;
-      s.diversityBoost += (rawInstinct.diversityBoost - s.diversityBoost) * speed;
-      s.antiClusterBoost += (rawInstinct.antiClusterBoost - s.antiClusterBoost) * speed;
-      s.structuralBiasWeight += (rawInstinct.structuralBiasWeight - s.structuralBiasWeight) * speed;
-      s.explorationWeight += (rawInstinct.explorationWeight - s.explorationWeight) * speed;
+      // Interpola + clamp absoluto para garantir limitadores
+      s.mutationMultiplier = Math.max(0.4, Math.min(2.0, s.mutationMultiplier + (target.mutationMultiplier - s.mutationMultiplier) * speed));
+      s.diversityBoost = Math.max(0.0, Math.min(0.8, s.diversityBoost + (target.diversityBoost - s.diversityBoost) * speed));
+      s.antiClusterBoost = Math.max(0.0, Math.min(0.9, s.antiClusterBoost + (target.antiClusterBoost - s.antiClusterBoost) * speed));
+      s.structuralBiasWeight = Math.max(0.2, Math.min(1.0, s.structuralBiasWeight + (target.structuralBiasWeight - s.structuralBiasWeight) * speed));
+      s.explorationWeight = Math.max(0.0, Math.min(0.9, s.explorationWeight + (target.explorationWeight - s.explorationWeight) * speed));
 
       console.log(
         `[INSTINCT STATE]\n` +
-        `  mode:          ${s.mode} (cycles: ${instinctRuntime.cyclesInMode})\n` +
-        `  healthScore:   ${health.healthScore.toFixed(3)}\n` +
-        `  avgHits:       ${health.avgHits.toFixed(2)}\n` +
-        `  lowHitsRate:   ${(health.lowHitsRate * 100).toFixed(1)}%\n` +
-        `\n[INSTINCT ACTION]\n` +
-        `  mutationMult:  ${s.mutationMultiplier.toFixed(2)}\n` +
-        `  biasWeight:    ${s.structuralBiasWeight.toFixed(2)}\n` +
-        `  antiCluster:   ${s.antiClusterBoost.toFixed(2)}`
+        `  mode:             ${s.mode} (cycles: ${instinctRuntime.cyclesInMode})\n` +
+        `  healthScore:      ${health.healthScore.toFixed(3)}\n` +
+        `  avgHits:          ${health.avgHits.toFixed(2)}\n` +
+        `  lowHitsRate:      ${(health.lowHitsRate * 100).toFixed(1)}%\n` +
+        `  sampleSize:       ${sampleSize}\n` +
+        `[INSTINCT ACTION]\n` +
+        `  mutationMultiplier:   ${s.mutationMultiplier.toFixed(2)}\n` +
+        `  diversityBoost:       ${s.diversityBoost.toFixed(2)}\n` +
+        `  antiClusterBoost:     ${s.antiClusterBoost.toFixed(2)}\n` +
+        `  structuralBiasWeight: ${s.structuralBiasWeight.toFixed(2)}\n` +
+        `  explorationWeight:    ${s.explorationWeight.toFixed(2)}`
       );
     }
 
