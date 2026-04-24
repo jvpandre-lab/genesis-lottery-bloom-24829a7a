@@ -477,15 +477,30 @@ export const arbiterMemory = {
     }
 
     // --- Protection Rule: Simulated Conference Guard ---
-    if (decision.context.targetContestNumber !== contestNumber) {
-      console.log(
-        `[ARBITER LEARNING] skipped simulated conference` +
-        ` | decisionId: ${decisionId}` +
-        ` | target: ${decision.context.targetContestNumber}` +
-        ` | tested: ${contestNumber}`,
-      );
-      return;
-    }
+    // Accept when conferring against the exact target OR the immediately
+    // previous contest (target - 1). Generation targets "next contest", but
+    // real conferral typically uses the latest available draw.
+    const target = decision.context.targetContestNumber;
+    const accepted =
+      target != null &&
+      (contestNumber === target || contestNumber === target - 1);
+
+    console.log(
+      `[ARBITER LEARNING CHECK]\n` +
+      `  decisionId:           ${decisionId}\n` +
+      `  targetContestNumber:  ${target}\n` +
+      `  testedContestNumber:  ${contestNumber}\n` +
+      `  accepted:             ${accepted}\n` +
+      `  reason:               ${
+        accepted
+          ? "match (target or target-1)"
+          : target == null
+            ? "no target set"
+            : "contest mismatch (out of accepted window)"
+      }`,
+    );
+
+    if (!accepted) return;
 
     // --- Idempotency guard (persistent-safe) ---
     if (decision.outcomeHits !== undefined) {
