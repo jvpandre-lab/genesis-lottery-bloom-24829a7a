@@ -7,6 +7,7 @@ import { EvolutionaryBacktestPanel } from "@/components/EvolutionaryBacktestPane
 import { EvolutionTimeline } from "@/components/EvolutionTimeline";
 import { HistoryHealthIndicator } from "@/components/HistoryHealthIndicator";
 import { HistoryUploader } from "@/components/HistoryUploader";
+import { RealConferralPanel } from "@/components/RealConferralPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { TacticalLotePanel } from "@/components/TacticalLotePanel";
 import { TerritoryHeatmap } from "@/components/TerritoryHeatmap";

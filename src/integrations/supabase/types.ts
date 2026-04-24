@@ -107,6 +107,8 @@ export type Database = {
           metadata: Json | null
           mutation_rate: number | null
           outcome_good: boolean | null
+          outcome_hits: number | null
+          outcome_quality: string | null
           rejected_brain: string | null
           rejected_lineage: string | null
           rejected_score: number | null
@@ -131,6 +133,8 @@ export type Database = {
           metadata?: Json | null
           mutation_rate?: number | null
           outcome_good?: boolean | null
+          outcome_hits?: number | null
+          outcome_quality?: string | null
           rejected_brain?: string | null
           rejected_lineage?: string | null
           rejected_score?: number | null
@@ -155,6 +159,8 @@ export type Database = {
           metadata?: Json | null
           mutation_rate?: number | null
           outcome_good?: boolean | null
+          outcome_hits?: number | null
+          outcome_quality?: string | null
           rejected_brain?: string | null
           rejected_lineage?: string | null
           rejected_score?: number | null
