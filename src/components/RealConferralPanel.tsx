@@ -1,13 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Target, CheckCircle2 } from "lucide-react";
-import { fetchRecentDraws, fetchRecentGenerations } from "@/services/storageService";
+import {
+    fetchRecentDraws,
+    fetchRecentGenerations,
+    getLatestContestNumber,
+} from "@/services/storageService";
 import { countHits } from "@/engine/backtestEngine";
 import { arbiterMemory } from "@/engine/arbiterMemory";
 import { supabase } from "@/integrations/supabase/client";
+import { GenerationResult } from "@/engine/lotteryTypes";
 
-export function RealConferralPanel() {
+interface RealConferralPanelProps {
+    /** Geração atual em memória (state). Tem prioridade sobre o banco. */
+    currentResult?: GenerationResult | null;
+}
+
+interface ConferralGame {
+    numbers: number[];
+    lineage: string;
+    decisionId?: string;
+}
+
+export function RealConferralPanel({ currentResult }: RealConferralPanelProps) {
     const [busy, setBusy] = useState(false);
     const [conferralStatus, setConferralStatus] = useState<string | null>(null);
 
@@ -15,77 +31,133 @@ export function RealConferralPanel() {
         setBusy(true);
         setConferralStatus(null);
         try {
-            // 1. Pega os jogos gerados mais recentes
-            const gens = await fetchRecentGenerations(1);
-            if (!gens || gens.length === 0) {
-                setConferralStatus("⚠️ Gere jogos antes de conferir");
-                return;
-            }
-            const lastGen = gens[0];
+            await arbiterMemory.init();
 
-            const { data: bs } = await supabase.from("generation_batches").select("id").eq("generation_id", lastGen.id);
-            if (!bs || bs.length === 0) {
-                setConferralStatus("⚠️ Gere jogos antes de conferir");
-                return;
-            }
+            // 1. PRIORIDADE: usar geração em memória
+            let allGames: ConferralGame[] = [];
+            let sourceLabel = "memória";
 
-            const allGames: { numbers: number[], lineage: string, decisionId?: string }[] = [];
-            for (const b of bs) {
-                const { data: games } = await supabase.from("generation_games").select("numbers, lineage, metrics").eq("batch_id", b.id);
-                if (games) {
-                    allGames.push(...games.map((g: any) => ({
+            if (currentResult && currentResult.batches?.length > 0) {
+                allGames = currentResult.batches.flatMap((b) =>
+                    b.games.map((g) => ({
                         numbers: g.numbers,
                         lineage: g.lineage,
-                        decisionId: (g.metrics as any)?.decisionId
-                    })));
+                        decisionId: g.decisionId,
+                    })),
+                );
+            } else {
+                // 2. FALLBACK: buscar última geração no banco
+                sourceLabel = "banco (fallback)";
+                const gens = await fetchRecentGenerations(1);
+                if (!gens || gens.length === 0) {
+                    setConferralStatus("⚠️ Nenhuma geração ativa encontrada");
+                    return;
+                }
+                const lastGen = gens[0];
+                const { data: bs } = await supabase
+                    .from("generation_batches")
+                    .select("id")
+                    .eq("generation_id", lastGen.id);
+                if (!bs || bs.length === 0) {
+                    setConferralStatus("⚠️ Nenhuma geração ativa encontrada");
+                    return;
+                }
+                for (const b of bs) {
+                    const { data: games } = await supabase
+                        .from("generation_games")
+                        .select("numbers, lineage, metrics")
+                        .eq("batch_id", b.id);
+                    if (games) {
+                        allGames.push(
+                            ...games.map((g: any) => ({
+                                numbers: g.numbers as number[],
+                                lineage: g.lineage as string,
+                                decisionId: (g.metrics as any)?.decisionId,
+                            })),
+                        );
+                    }
                 }
             }
 
-            // 2. Tentar decifrar qual concurso alvo dessa geração
-            // O targetContestNumber fica gravado no banco onde? Nós acabamos de colocar na metadata do decision, ou no `lotteryTypes`.
-            // Na tabela `generations` não tem coluna, mas vamos ver os últimos draws pra tentar adivinhar se não tivermos.
-            const draws = await fetchRecentDraws(10);
-            if (draws.length === 0) {
-                toast({ title: "Erro", description: "Nenhum sorteio histórico disponível", variant: "destructive" });
+            if (allGames.length === 0) {
+                setConferralStatus("⚠️ Nenhuma geração ativa encontrada");
                 return;
             }
 
-            // O target da geração recente (idealmente) é o próximo. Qual o concurso que o usuário quer conferir?
-            // Neste MVP: vamos chumbadamente testar contra o ÚLTIMO sorteio que está na base (draws[0]).
-            const latestDraw = draws[0];
+            // 3. Determinar concurso de referência (último real da base)
+            const latestContest = await getLatestContestNumber();
+            if (!latestContest) {
+                toast({
+                    title: "Erro",
+                    description: "Nenhum sorteio histórico disponível",
+                    variant: "destructive",
+                });
+                return;
+            }
 
+            const draws = await fetchRecentDraws(1);
+            const latestDraw = draws[0];
+            if (!latestDraw || latestDraw.contestNumber !== latestContest) {
+                toast({
+                    title: "Erro",
+                    description: "Sorteio mais recente inconsistente",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            // 4. Aplicar aprendizado
             let learnedCount = 0;
             let ignoredCount = 0;
+            let withoutDecisionId = 0;
 
-            // Ensure memory is loaded
-            await arbiterMemory.init();
-
-            // 3. Calcular hits e aplicar
             for (const game of allGames) {
-                if (!game.decisionId) continue;
-
+                if (!game.decisionId) {
+                    withoutDecisionId++;
+                    continue;
+                }
                 const hits = countHits(game.numbers, latestDraw.numbers);
+                const prev = arbiterMemory
+                    .getState()
+                    .decisions.find((d) => d.id === game.decisionId);
+                const target = prev?.context.targetContestNumber;
 
-                // A checagem de targetContestNumber === contestNumber será feita internamente pelo applyLearning
-                // Se bater, ele aprende. Senão o applyLearning loga e ignora.
-                const prevBias = arbiterMemory.getState().decisions.find(d => d.id === game.decisionId)?.outcomeHits;
-                const target = arbiterMemory.getState().decisions.find(d => d.id === game.decisionId)?.context.targetContestNumber;
+                arbiterMemory.applyLearning(
+                    game.decisionId,
+                    hits,
+                    latestDraw.contestNumber,
+                );
 
-                arbiterMemory.applyLearning(game.decisionId, hits, latestDraw.contestNumber);
-
-                // Verifica se aprendeu para fins de UI
-                const newD = arbiterMemory.getState().decisions.find(d => d.id === game.decisionId);
-                if (target === latestDraw.contestNumber && prevBias === undefined && newD?.outcomeHits !== undefined) {
+                const after = arbiterMemory
+                    .getState()
+                    .decisions.find((d) => d.id === game.decisionId);
+                if (
+                    target === latestDraw.contestNumber &&
+                    after?.outcomeHits !== undefined
+                ) {
                     learnedCount++;
                 } else {
                     ignoredCount++;
                 }
             }
 
-            setConferralStatus(`Conferência Finalizada! Concurso: ${latestDraw.contestNumber}. Aprendizados: ${learnedCount}. Ignorados: ${ignoredCount}.`);
-            toast({ title: "Conferência Executada", description: `Hits calculados sobre o concurso ${latestDraw.contestNumber}.` });
+            setConferralStatus(
+                `✅ Conferência concluída (fonte: ${sourceLabel}). Concurso ${latestDraw.contestNumber}. ` +
+                    `Jogos: ${allGames.length}. Aprendidos: ${learnedCount}. Ignorados: ${ignoredCount}.` +
+                    (withoutDecisionId > 0
+                        ? ` Sem decisionId: ${withoutDecisionId}.`
+                        : ""),
+            );
+            toast({
+                title: "Conferência Executada",
+                description: `Hits calculados sobre o concurso ${latestDraw.contestNumber}.`,
+            });
         } catch (e: any) {
-            toast({ title: "Falha", description: e.message, variant: "destructive" });
+            toast({
+                title: "Falha",
+                description: e.message,
+                variant: "destructive",
+            });
         } finally {
             setBusy(false);
         }
@@ -99,11 +171,20 @@ export function RealConferralPanel() {
                         <Target className="h-4 w-4 text-primary" /> Conferência Real & Aprendizado
                     </h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Testa a geração mais recente contra o último sorteio do sistema.
+                        Confere a geração atual contra o último sorteio do sistema.
                     </p>
                 </div>
-                <Button size="sm" onClick={handleConferral} disabled={busy} className="bg-gradient-primary text-primary-foreground shadow-glow">
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                <Button
+                    size="sm"
+                    onClick={handleConferral}
+                    disabled={busy}
+                    className="bg-gradient-primary text-primary-foreground shadow-glow"
+                >
+                    {busy ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                    )}
                     Conferir e Aprender
                 </Button>
             </div>
