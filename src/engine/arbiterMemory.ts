@@ -504,7 +504,7 @@ export const arbiterMemory = {
       }`,
     );
 
-    if (!accepted) return;
+    if (!accepted) return { applied: false, reason: "blocked" };
 
     // --- Idempotency guard (persistent-safe) ---
     if (decision.outcomeHits !== undefined) {
@@ -514,7 +514,7 @@ export const arbiterMemory = {
         ` | contestNumber: ${contestNumber}` +
         ` | already evaluated with hits=${decision.outcomeHits} quality=${decision.outcomeQuality}`,
       );
-      return;
+      return { applied: false, reason: "duplicate" };
     }
 
     const quality = classifyQuality(hits);
