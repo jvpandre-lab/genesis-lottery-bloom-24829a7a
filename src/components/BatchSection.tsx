@@ -3,11 +3,20 @@ import { GameCard } from "./GameCard";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+// Rótulos simples voltados ao usuário final
+const BATCH_LABELS: Record<string, string> = {
+  Alpha: "Mais seguro",
+  Sigma: "Distribuído",
+  Delta: "Quebra padrão",
+  Omega: "Alto risco",
+};
+
+
 export function BatchSection({ batch }: { batch: Batch }) {
   const meta = BATCHES[batch.name];
-  const lin = LINEAGES[batch.dominant];
   const colorClass = `text-${meta.color}`;
   const ringColor = `bg-${meta.color}`;
+  const userLabel = BATCH_LABELS[batch.name] ?? meta.purpose;
   return (
     <section className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between glass-strong rounded-xl px-5 py-4">
@@ -18,11 +27,8 @@ export function BatchSection({ batch }: { batch: Batch }) {
           <div>
             <div className="flex items-center gap-2">
               <h3 className={cn("text-lg font-semibold tracking-tight", colorClass)}>Lote {batch.name}</h3>
-              <Badge variant="outline" className="text-[10px]">{meta.purpose}</Badge>
+              <Badge variant="outline" className="text-[10px]">{userLabel}</Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {meta.description} · Linhagem dominante: <span className="text-foreground/80">{lin.name}</span>
-            </p>
           </div>
         </div>
         <div className="hidden md:flex items-center gap-6">

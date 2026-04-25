@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Game, LINEAGES, formatDezena } from "@/engine/lotteryTypes";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface Props {
   game: Game;
@@ -10,14 +12,18 @@ interface Props {
 export function GameCard({ game, index }: Props) {
   const meta = LINEAGES[game.lineage];
   const score = Math.round(game.score.total * 100);
+  const [showDetails, setShowDetails] = useState(false);
+
+  // Badge de qualidade simples
+  const quality = score >= 70 ? "Bom" : score >= 50 ? "Médio" : "Básico";
+  const qualityColor = score >= 70 ? "text-emerald-400" : score >= 50 ? "text-amber-400" : "text-muted-foreground";
+
   return (
     <div className="glass rounded-xl p-4 hover:border-primary/50 transition-colors animate-fade-in">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground font-mono">JOGO {String(index + 1).padStart(2, "0")}</span>
-          <Badge variant="outline" className={cn("text-[10px] border-current/40", `text-${meta.color}`)}>
-            {meta.short} · {meta.name}
-          </Badge>
+          <span className={cn("text-[10px] font-semibold", qualityColor)}>{quality}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="text-[10px] text-muted-foreground">SCORE</div>
@@ -34,14 +40,29 @@ export function GameCard({ game, index }: Props) {
           </div>
         ))}
       </div>
+      {/* Métricas principais */}
       <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+        <Stat label="Qualidade" value={pct(game.score.total)} />
         <Stat label="Cobertura" value={pct(game.score.coverage)} />
-        <Stat label="Distribuição" value={pct(game.score.distribution)} />
         <Stat label="Diversidade" value={pct(game.score.diversity)} />
-        <Stat label="Território" value={pct(game.score.territory)} />
-        <Stat label="Anti-viés" value={pct(game.score.antiBias)} />
-        <Stat label="Anti-cluster" value={pct(game.score.clusterPenalty)} />
       </div>
+      {/* Detalhes opcionais */}
+      <button
+        onClick={() => setShowDetails((v) => !v)}
+        className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {showDetails ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {showDetails ? "Fechar detalhes" : "Ver detalhes"}
+      </button>
+      {showDetails && (
+        <div className="mt-2 grid grid-cols-3 gap-2 text-[10px] border-t border-border/30 pt-2">
+          <Stat label="Distribuição" value={pct(game.score.distribution)} />
+          <Stat label="Território" value={pct(game.score.territory)} />
+          <Stat label="Anti-viés" value={pct(game.score.antiBias)} />
+          <Stat label="Anti-cluster" value={pct(game.score.clusterPenalty)} />
+          <Stat label="Linhagem" value={meta.short} />
+        </div>
+      )}
     </div>
   );
 }

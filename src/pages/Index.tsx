@@ -31,22 +31,25 @@ import {
 } from "@/services/storageService";
 import {
   Activity,
+  ChevronDown,
+  ChevronUp,
   Cpu,
   Layers,
   Loader2,
+  Settings2,
   Shuffle,
   Sparkles,
   Target,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 
 const COUNTS = [1, 3, 5, 10, 15] as const;
 
 const SCENARIOS: { id: Scenario; label: string; hint: string }[] = [
-  { id: "conservative", label: "Conservador", hint: "Estabilidade estrutural" },
-  { id: "hybrid", label: "Híbrido", hint: "Equilíbrio adaptativo" },
-  { id: "aggressive", label: "Agressivo", hint: "Ruptura de padrões" },
-  { id: "exploratory", label: "Exploratório", hint: "Caos controlado" },
+  { id: "conservative", label: "Conservador", hint: "Mais estabilidade" },
+  { id: "hybrid", label: "Híbrido", hint: "Equilíbrio" },
+  { id: "aggressive", label: "Agressivo", hint: "Mais risco" },
+  { id: "exploratory", label: "Exploratório", hint: "Máxima variação" },
 ];
 
 const Index = () => {
@@ -56,6 +59,10 @@ const Index = () => {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [diag, setDiag] = useState<GenerationDiagnostics | null>(null);
   const [draws, setDraws] = useState<number>(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [learningStatus, setLearningStatus] = useState("idle");
+
+  const handleLearningStatus = useCallback((s: string) => setLearningStatus(s), []);
 
   function formatPercent(value: number): string {
     return `${(value * 100).toFixed(1)}%`;
@@ -315,7 +322,7 @@ const Index = () => {
           <section className="space-y-6 animate-fade-in">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <Kpi
-                label="Score médio"
+                label="Qualidade"
                 value={`${Math.round(result.metrics.avgScore * 100)}`}
                 suffix="/100"
                 tone="primary"
@@ -329,10 +336,7 @@ const Index = () => {
                 label="Cobertura"
                 value={`${Math.round(result.metrics.avgCoverage * 100)}%`}
               />
-              <Kpi
-                label="Entropia territorial"
-                value={formatPercent(result.metrics.territoryEntropy)}
-              />
+              <SystemStatusBlock result={result} learningStatus={learningStatus} />
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -341,27 +345,46 @@ const Index = () => {
                   <BatchSection key={b.name} batch={b} />
                 ))}
                 <div className="mt-8">
-                  <RealConferralPanel currentResult={result} drawsSyncCount={draws} />
+                  <RealConferralPanel
+                    currentResult={result}
+                    drawsSyncCount={draws}
+                    onAutoStatusChange={handleLearningStatus}
+                  />
                 </div>
               </div>
               <aside className="space-y-6">
-                <TerritoryHeatmap result={result} />
-                {diag && <DiagnosticsPanel diag={diag} />}
+                {/* Sempre visíveis */}
                 {recommendations.length > 0 && (
                   <RecommendationsPanel items={recommendations} />
                 )}
                 <BacktestPanel currentGeneration={result} />
-                <EvolutionaryBacktestPanel scenario={scenario} />
-                {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
-                <TacticalLotePanel batches={result.batches} />
-                <BrainTensionDiagnostics />
-                <EvolutionTimeline />
-                <div className="glass rounded-xl p-5 space-y-3">
-                  <h4 className="text-sm font-semibold tracking-tight">
-                    Composição das linhagens
-                  </h4>
-                  <LineageBreakdown result={result} />
-                </div>
+                <TerritoryHeatmap result={result} />
+
+                {/* Toggle Modo Avançado */}
+                <button
+                  onClick={() => setShowAdvanced((v) => !v)}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border/50 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+                >
+                  <Settings2 className="h-3.5 w-3.5" />
+                  {showAdvanced ? "Ocultar painel técnico" : "Modo avançado"}
+                  {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+
+                {/* Painéis técnicos — apenas no modo avançado */}
+                {showAdvanced && (
+                  <div className="space-y-6 border-t border-border/30 pt-4">
+                    {diag && <DiagnosticsPanel diag={diag} />}
+                    {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
+                    <EvolutionaryBacktestPanel scenario={scenario} />
+                    <TacticalLotePanel batches={result.batches} />
+                    <BrainTensionDiagnostics />
+                    <EvolutionTimeline />
+                    <div className="glass rounded-xl p-5 space-y-3">
+                      <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
+                      <LineageBreakdown result={result} />
+                    </div>
+                  </div>
+                )}
               </aside>
             </div>
           </section>
@@ -447,6 +470,84 @@ function LineageBreakdown({ result }: { result: GenerationResult }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── SystemStatusBlock ──────────────────────────────────────────────────────────
+// Status em linguagem simples derivado das métricas de geração e do aprendizado.
+
+function SystemStatusBlock({
+  result,
+  learningStatus,
+}: {
+  result: GenerationResult;
+  learningStatus: string;
+}) {
+  const { avgScore, avgDiversity } = result.metrics;
+
+  // Calcular status
+  let status: "Saudável" | "Em ajuste" | "Instável";
+  let statusColor: string;
+  let statusIcon: string;
+  let message: string;
+
+  if (learningStatus === "error") {
+    status = "Instável";
+    statusColor = "text-red-400";
+    statusIcon = "🔴";
+    message = "Erro na conferência. Verifique o painel de aprendizado abaixo.";
+  } else if (learningStatus === "continuous") {
+    status = "Em ajuste";
+    statusColor = "text-violet-400";
+    statusIcon = "🟡";
+    message = "Sistema em aprendizado contínuo enquanto aguarda o próximo concurso.";
+  } else if (learningStatus === "learned") {
+    status = "Saudável";
+    statusColor = "text-emerald-400";
+    statusIcon = "🟢";
+    message = "Organismo atualizado com resultado real. Próxima geração já reflete a mudança.";
+  } else if (learningStatus === "already-learned") {
+    status = "Saudável";
+    statusColor = "text-emerald-400";
+    statusIcon = "🟢";
+    message = "Aprendizado já aplicado. Sistema estável e sem alterações pendentes.";
+  } else if (avgScore < 0.4) {
+    status = "Instável";
+    statusColor = "text-red-400";
+    statusIcon = "🔴";
+    message = "Qualidade baixa detectada — sistema aumentando exploração automaticamente.";
+  } else if (avgDiversity < 0.25) {
+    status = "Em ajuste";
+    statusColor = "text-amber-400";
+    statusIcon = "🟡";
+    message = "Baixa diversidade detectada — sistema ajustando variação automaticamente.";
+  } else if (avgScore >= 0.65 && avgDiversity >= 0.35) {
+    status = "Saudável";
+    statusColor = "text-emerald-400";
+    statusIcon = "🟢";
+    message = "Sistema estável — pode manter a configuração atual.";
+  } else if (learningStatus === "pending" || learningStatus === "checking") {
+    status = "Em ajuste";
+    statusColor = "text-amber-400";
+    statusIcon = "🟡";
+    message = "Verificando disponibilidade do concurso alvo para aprendizado.";
+  } else {
+    status = "Em ajuste";
+    statusColor = "text-amber-400";
+    statusIcon = "🟡";
+    message = "Sistema em ajuste — próxima geração aplicará correções automaticamente.";
+  }
+
+  return (
+    <div className="glass rounded-xl px-5 py-4">
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
+        Status do Sistema
+      </div>
+      <div className={cn("mt-1 text-sm font-semibold flex items-center gap-1.5", statusColor)}>
+        <span>{statusIcon}</span> {status}
+      </div>
+      <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">{message}</p>
     </div>
   );
 }

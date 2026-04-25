@@ -181,11 +181,13 @@ interface RealConferralPanelProps {
     currentResult?: GenerationResult | null;
     /** Número inteiro de concursos no histórico. Muda após sincronização e dispara re-check. */
     drawsSyncCount?: number;
+    /** Callback opcional: notifica o parent sempre que o autoStatus muda. */
+    onAutoStatusChange?: (status: string) => void;
 }
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConferralPanelProps) {
+export function RealConferralPanel({ currentResult, drawsSyncCount, onAutoStatusChange }: RealConferralPanelProps) {
     // Estado do auto-aprendizado
     const [autoStatus, setAutoStatus] = useState<AutoStatus>("idle");
     const [report, setReport] = useState<LearningReport | null>(null);
@@ -201,6 +203,11 @@ export function RealConferralPanel({ currentResult, drawsSyncCount }: RealConfer
     // Anti-loop refs
     const isCheckingRef = useRef(false);
     const lastCheckedKeyRef = useRef<string | null>(null);
+
+    // Elevar autoStatus ao parent quando mudar
+    useEffect(() => {
+        onAutoStatusChange?.(autoStatus);
+    }, [autoStatus, onAutoStatusChange]);
 
     // ── Utilitário: capturar estado vivo do organismo ──────────────────────────
     const captureOrganism = useCallback((scenario: Scenario) => {
