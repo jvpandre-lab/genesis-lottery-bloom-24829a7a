@@ -235,7 +235,7 @@ export async function generate(
   console.log(`[ARBITER] decisionsBefore=${decisionsBefore}`);
 
   const structuralBias = arbiterMemory.getStructuralBias(scenario);
-  const adaptiveInstinct = arbiterMemory.getAdaptiveInstinct(input.targetContestNumber ?? undefined);
+  const adaptiveInstinct = arbiterMemory.getAdaptiveInstinct(input.targetContestNumber ?? undefined, scenario);
   const metaBias = arbiterMemory.getMetaBias(scenario);
 
   // Log captura o estado do organismo que esta geração vai utilizar

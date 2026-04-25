@@ -105,6 +105,54 @@ const instinctRuntime: InstinctRuntimeState = {
   }
 };
 
+// ── Estado de Instinto por Cenário ───────────────────────────────────────────
+// Separa a reação do organismo por cenário para evitar contaminação cross-cenário.
+// Ex: aprendizado ruim em hybrid não deve punir aggressive com o mesmo peso.
+interface ScenarioRuntimeState {
+  currentMode: InstinctMode;
+  smoothedInstinct: Omit<AdaptiveInstinct, "mode">;
+  sampleCount: number;    // quantas reações reais já ocorreram neste cenário
+  lastAvgHits: number | null; // última média de hits conferida neste cenário
+}
+
+const SCENARIO_DEFAULTS: Omit<AdaptiveInstinct, "mode"> = {
+  mutationMultiplier: 1.0, diversityBoost: 0.3, antiClusterBoost: 0.3,
+  structuralBiasWeight: 0.8, explorationWeight: 0.3,
+};
+
+const perScenarioRuntime: Record<Scenario, ScenarioRuntimeState> = {
+  conservative: { currentMode: "balanced", smoothedInstinct: { ...SCENARIO_DEFAULTS }, sampleCount: 0, lastAvgHits: null },
+  hybrid: { currentMode: "balanced", smoothedInstinct: { ...SCENARIO_DEFAULTS }, sampleCount: 0, lastAvgHits: null },
+  aggressive: { currentMode: "balanced", smoothedInstinct: { ...SCENARIO_DEFAULTS }, sampleCount: 0, lastAvgHits: null },
+  exploratory: { currentMode: "balanced", smoothedInstinct: { ...SCENARIO_DEFAULTS }, sampleCount: 0, lastAvgHits: null },
+};
+
+/** Interpola suavemente um ScenarioRuntimeState em direção a um alvo de modo. */
+function applyScenarioReactionToRuntime(
+  runtime: ScenarioRuntimeState,
+  avgHits: number,
+  TARGETS: Record<InstinctMode, Omit<AdaptiveInstinct, "mode">>,
+): void {
+  let newMode: InstinctMode;
+  if (avgHits < 8) newMode = "exploration";
+  else if (avgHits < 10) newMode = "recovery";
+  else if (avgHits >= 11) newMode = "conservative";
+  else newMode = "balanced";
+
+  runtime.currentMode = newMode;
+  runtime.lastAvgHits = avgHits;
+  runtime.sampleCount++;
+
+  const target = TARGETS[newMode];
+  const s = runtime.smoothedInstinct;
+  const speed = 0.4; // reaão mais rápida que o global (0.3)
+  s.mutationMultiplier = Math.max(0.4, Math.min(2.0, s.mutationMultiplier + (target.mutationMultiplier - s.mutationMultiplier) * speed));
+  s.diversityBoost = Math.max(0.0, Math.min(0.8, s.diversityBoost + (target.diversityBoost - s.diversityBoost) * speed));
+  s.antiClusterBoost = Math.max(0.0, Math.min(0.9, s.antiClusterBoost + (target.antiClusterBoost - s.antiClusterBoost) * speed));
+  s.structuralBiasWeight = Math.max(0.2, Math.min(1.0, s.structuralBiasWeight + (target.structuralBiasWeight - s.structuralBiasWeight) * speed));
+  s.explorationWeight = Math.max(0.0, Math.min(0.9, s.explorationWeight + (target.explorationWeight - s.explorationWeight) * speed));
+}
+
 // ── Aprendizado Contínuo (Simulação Controlada) ─────────────────────────────────
 // temporaryBias: influencia geração seguinte MAS NÃO é gravado no banco.
 // Peso: 30% do memoryBias real. Decay rápido (60% ao trocar concurso de simulação).
@@ -523,8 +571,12 @@ export const arbiterMemory = {
 
   /**
    * Computa e suaviza os multipliers de Instinto Baseados na Saúde Geral.
+   *
+   * @param targetContestNumber - Número do concurso alvo (usado para cache/interpolação do global)
+   * @param scenario - Se fornecido, mistura reação do cenário (75%) com global (25%).
+   *                   Se o cenário não tiver amostra suficiente (<2), usa global como fallback.
    */
-  getAdaptiveInstinct(targetContestNumber?: number): AdaptiveInstinct {
+  getAdaptiveInstinct(targetContestNumber?: number, scenario?: Scenario): AdaptiveInstinct {
     const health = this.evaluateSystemHealth();
     const hitsExtracted = state.decisions.filter(d => d.outcomeHits !== undefined);
     const uniqueContests = new Set(hitsExtracted.map(d => d.context.targetContestNumber || 0));
@@ -617,6 +669,49 @@ export const arbiterMemory = {
         `  antiClusterBoost:     ${s.antiClusterBoost.toFixed(2)}\n` +
         `  structuralBiasWeight: ${s.structuralBiasWeight.toFixed(2)}\n` +
         `  explorationWeight:    ${s.explorationWeight.toFixed(2)}`
+      );
+    }
+
+    // Se scenario foi fornecido e tem amostra real, misturar 75% cenário + 25% global
+    if (scenario && perScenarioRuntime[scenario].sampleCount >= 2) {
+      const sr = perScenarioRuntime[scenario];
+      const g = instinctRuntime.smoothedInstinct;
+      const w = 0.75; // peso do cenário
+
+      const blended: AdaptiveInstinct = {
+        mode: sr.currentMode,
+        mutationMultiplier: sr.smoothedInstinct.mutationMultiplier * w + g.mutationMultiplier * (1 - w),
+        diversityBoost: sr.smoothedInstinct.diversityBoost * w + g.diversityBoost * (1 - w),
+        antiClusterBoost: sr.smoothedInstinct.antiClusterBoost * w + g.antiClusterBoost * (1 - w),
+        structuralBiasWeight: sr.smoothedInstinct.structuralBiasWeight * w + g.structuralBiasWeight * (1 - w),
+        explorationWeight: sr.smoothedInstinct.explorationWeight * w + g.explorationWeight * (1 - w),
+      };
+
+      console.log(
+        `[GENERATION SCENARIO CONTEXT]\n` +
+        `  selectedScenario:         ${scenario}\n` +
+        `  effectiveScenario:        ${scenario}\n` +
+        `  scenarioReactionApplied:  ${sr.sampleCount >= 2} (samples=${sr.sampleCount})\n` +
+        `  globalReactionApplied:    true (25% weight)\n` +
+        `  finalMutation:            ${blended.mutationMultiplier.toFixed(2)}x (scenario=${sr.smoothedInstinct.mutationMultiplier.toFixed(2)} global=${g.mutationMultiplier.toFixed(2)})\n` +
+        `  finalDiversity:           ${(blended.diversityBoost * 100).toFixed(0)}%\n` +
+        `  finalAntiCluster:         ${(blended.antiClusterBoost * 100).toFixed(0)}%\n` +
+        `  scenarioMode:             ${sr.currentMode}\n` +
+        `  globalMode:               ${g.mode}`,
+      );
+
+      return blended;
+    }
+
+    // Fallback: amostra insuficiente no cenário, usar global como único estado
+    if (scenario) {
+      console.log(
+        `[GENERATION SCENARIO CONTEXT]\n` +
+        `  selectedScenario:         ${scenario}\n` +
+        `  scenarioReactionApplied:  false (samples=${perScenarioRuntime[scenario].sampleCount} < 2)\n` +
+        `  globalReactionApplied:    true (100% fallback)\n` +
+        `  finalMutation:            ${instinctRuntime.smoothedInstinct.mutationMultiplier.toFixed(2)}x\n` +
+        `  globalMode:               ${instinctRuntime.smoothedInstinct.mode}`,
       );
     }
 
@@ -1019,46 +1114,67 @@ export const arbiterMemory = {
     learned: number,
     scenario: Scenario,
   ): { modeBefore: string; modeAfter: string; healthScore: number } {
+    // TARGETS reutilizados localmente para suavização dos per-cenários
+    const TARGETS: Record<InstinctMode, Omit<AdaptiveInstinct, "mode">> = {
+      balanced: { mutationMultiplier: 1.0, diversityBoost: 0.3, antiClusterBoost: 0.3, structuralBiasWeight: 0.8, explorationWeight: 0.3 },
+      recovery: { mutationMultiplier: 2.0, diversityBoost: 0.8, antiClusterBoost: 0.9, structuralBiasWeight: 0.2, explorationWeight: 0.9 },
+      conservative: { mutationMultiplier: 0.5, diversityBoost: 0.1, antiClusterBoost: 0.2, structuralBiasWeight: 1.0, explorationWeight: 0.1 },
+      exploration: { mutationMultiplier: 1.5, diversityBoost: 0.6, antiClusterBoost: 0.5, structuralBiasWeight: 0.5, explorationWeight: 0.8 },
+    };
+
     // === CAPTURA BEFORE ===
     const healthBefore = this.evaluateSystemHealth();
     const biasBefore = state.memoryBias[scenario] ?? 0;
-    const modeBefore = instinctRuntime.currentMode;
+    const modeBefore = perScenarioRuntime[scenario].currentMode;
+    const globalModeBefore = instinctRuntime.currentMode;
 
-    // === AJUSTE IMEDIATO DO INSTINTO (baseado em performance) ===
+    // === REAÇÃO 100% NO CENÁRIO FONTE ===
+    applyScenarioReactionToRuntime(perScenarioRuntime[scenario], avgHits, TARGETS);
+
+    // === INFLUÊNCIA GLOBAL REDUZIDA (25%) ===
+    // Altera apenas o modo global, sem substituir a reação cenário-específica
     if (avgHits < 10) {
-      // Performance baixa → forçar modo recovery/exploration com guardrail
-      const newMode: InstinctMode = avgHits < 8 ? "exploration" : "recovery";
-      instinctRuntime.currentMode = newMode;
-      instinctRuntime.modeConfidence = clamp(instinctRuntime.modeConfidence * 0.5, 0, 1);
-      instinctRuntime.cyclesSinceRecovery = 0;
+      // Se já está em recovery/exploration, manter; senão empurrar leve
+      if (instinctRuntime.currentMode === "balanced" || instinctRuntime.currentMode === "conservative") {
+        instinctRuntime.currentMode = avgHits < 8 ? "exploration" : "recovery";
+        instinctRuntime.cyclesInMode = 0;
+      }
     } else if (avgHits >= 11) {
-      // Performance boa → reforçar modo conservador
-      instinctRuntime.currentMode = "conservative";
-      instinctRuntime.modeConfidence = clamp(instinctRuntime.modeConfidence * 1.2, 0, 1);
+      if (instinctRuntime.currentMode === "recovery" || instinctRuntime.currentMode === "exploration") {
+        instinctRuntime.currentMode = "balanced"; // suaviza de recovery → balanced primeiro
+      } else {
+        instinctRuntime.currentMode = "conservative";
+      }
     }
-    // avgHits 10-11 → manter modo atual, reação automática via evaluateSystemHealth
+    // 10-11 → global não muda, reação ocorre apenas no cenário
 
-    // Forçar re-avaliação (reset do cache do concurso)
+    // Forçar re-avaliação do cache global
     instinctRuntime.lastTargetContest = 0;
 
     // === CAPTURA AFTER ===
     const healthAfter = this.evaluateSystemHealth();
-    const instinctAfter = this.getAdaptiveInstinct();
+    const instinctAfter = this.getAdaptiveInstinct(undefined, scenario);
     const biasAfter = state.memoryBias[scenario] ?? 0;
     const metaBiasAfter = this.getMetaBias(scenario);
     const structBiasAfter = this.getStructuralBias(scenario);
-
-    const structuralBiasActive = Object.values(structBiasAfter.territoryPressure).some(
-      (v) => Math.abs(v) > 0.002,
-    );
+    const structuralBiasActive = Object.values(structBiasAfter.territoryPressure).some((v) => Math.abs(v) > 0.002);
+    const globalModeAfter = instinctRuntime.currentMode;
 
     console.log(
-      `[ORGANISM REACTION]\n` +
-      `  learnedCount:         ${learned}\n` +
+      `[SCENARIO REACTION]\n` +
+      `  userScenario:         ${scenario}\n` +
+      `  effectiveScenario:    ${scenario}\n` +
+      `  learnedFromScenario:  ${scenario}\n` +
       `  avgHits:              ${avgHits.toFixed(1)}\n` +
-      `  healthScore:          ${(healthAfter.healthScore * 100).toFixed(0)}%\n` +
-      `  modeBefore:           ${modeBefore}\n` +
-      `  modeAfter:            ${instinctAfter.mode}\n` +
+      `  scenarioModeBefore:   ${modeBefore}\n` +
+      `  scenarioModeAfter:    ${perScenarioRuntime[scenario].currentMode}\n` +
+      `  globalModeBefore:     ${globalModeBefore}\n` +
+      `  globalModeAfter:      ${globalModeAfter}\n` +
+      `  scenarioWeight:       75%\n` +
+      `  globalWeight:         25%\n` +
+      `  learnedCount:         ${learned}\n` +
+      `  healthBefore:         ${healthBefore.state} (${(healthBefore.healthScore * 100).toFixed(0)}%)\n` +
+      `  healthAfter:          ${healthAfter.state} (${(healthAfter.healthScore * 100).toFixed(0)}%)\n` +
       `  memoryBiasBefore:     ${biasBefore.toFixed(6)}\n` +
       `  memoryBiasAfter:      ${biasAfter.toFixed(6)}\n` +
       `  structuralBiasActive: ${structuralBiasActive}\n` +
@@ -1066,6 +1182,14 @@ export const arbiterMemory = {
       `  mutationMultiplier:   ${instinctAfter.mutationMultiplier.toFixed(2)}x\n` +
       `  diversityBoost:       ${(instinctAfter.diversityBoost * 100).toFixed(0)}%\n` +
       `  antiClusterBoost:     ${(instinctAfter.antiClusterBoost * 100).toFixed(0)}%`,
+    );
+
+    // Log legado para compatibilidade com ó painel e testes anteriores
+    console.log(
+      `[ORGANISM REACTION]\n` +
+      `  learnedCount: ${learned}  avgHits: ${avgHits.toFixed(1)}\n` +
+      `  modeBefore: ${modeBefore}  modeAfter: ${instinctAfter.mode}\n` +
+      `  healthScore: ${(healthAfter.healthScore * 100).toFixed(0)}%`,
     );
 
     return {
