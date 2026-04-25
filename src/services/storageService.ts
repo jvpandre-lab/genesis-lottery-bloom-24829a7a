@@ -475,6 +475,7 @@ export async function persistArbiterDecision(decision: {
     targetContestNumber?: number | null;
   };
   good: boolean;
+  memoryBiasApplied?: number;
 }): Promise<void> {
   const { error } = await supabase.from("arbiter_decisions").insert({
     id: decision.id,
@@ -493,7 +494,7 @@ export async function persistArbiterDecision(decision: {
     marginal_diversity: decision.chosen.diversity,
     coverage: decision.chosen.coverageVal,
     cluster: decision.chosen.clusterVal,
-    memory_bias: null,
+    memory_bias: decision.memoryBiasApplied ?? null,
     decision: decision.good ? "chosen" : "rejected",
     outcome_good: decision.good,
     // outcome_hits and outcome_quality are null on insert — filled later by applyLearning()

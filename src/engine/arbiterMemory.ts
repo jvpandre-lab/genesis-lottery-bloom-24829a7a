@@ -40,6 +40,8 @@ export interface ArbiterDecisionRecord {
   outcomeHits?: number;
   /** Quality classification derived from outcomeHits */
   outcomeQuality?: "good" | "neutral" | "bad";
+  /** Viés da memória exato computado no momento da decisão (para auditoria) */
+  memoryBiasApplied?: number;
 }
 
 interface BrainStats {
@@ -518,6 +520,7 @@ export const arbiterMemory = {
       ...record,
       id,
       createdAt: new Date().toISOString(),
+      memoryBiasApplied: state.memoryBias[record.context.scenario] ?? 0,
     };
     state.decisions.push(fullRecord);
     if (state.decisions.length > MAX_DECISIONS) {
