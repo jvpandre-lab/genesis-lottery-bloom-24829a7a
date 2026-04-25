@@ -153,6 +153,45 @@ function applyScenarioReactionToRuntime(
   s.explorationWeight = Math.max(0.0, Math.min(0.9, s.explorationWeight + (target.explorationWeight - s.explorationWeight) * speed));
 }
 
+// ── DNA Base por Cenário ───────────────────────────────────────────────
+// Identidade natural de cada cenário, usada como ancora quando sampleCount < 2.
+// Garante que aggressive não vire recovery puro por conta do hybrid.
+// Valores respeitam todos os clamps já existentes.
+const SCENARIO_BASE_DNA: Record<Scenario, Omit<AdaptiveInstinct, "mode"> & { naturalMode: InstinctMode }> = {
+  conservative: {
+    naturalMode: "conservative",
+    mutationMultiplier: 0.70,   // menor mutação
+    diversityBoost: 0.15,        // baixa diversidade intencional
+    antiClusterBoost: 0.20,     // cluster aceito
+    structuralBiasWeight: 0.95, // máxima aderência estrutural
+    explorationWeight: 0.15,    // mínima exploração
+  },
+  hybrid: {
+    naturalMode: "balanced",
+    mutationMultiplier: 1.00,   // equilíbrio
+    diversityBoost: 0.30,
+    antiClusterBoost: 0.30,
+    structuralBiasWeight: 0.80,
+    explorationWeight: 0.30,
+  },
+  aggressive: {
+    naturalMode: "exploration",
+    mutationMultiplier: 1.50,   // alta mutação
+    diversityBoost: 0.60,        // alta diversidade
+    antiClusterBoost: 0.60,     // forte anti-cluster
+    structuralBiasWeight: 0.50,
+    explorationWeight: 0.65,    // alta exploração
+  },
+  exploratory: {
+    naturalMode: "exploration",
+    mutationMultiplier: 1.40,   // máxima variação controlada
+    diversityBoost: 0.70,        // máxima diversidade (cap=0.8)
+    antiClusterBoost: 0.50,
+    structuralBiasWeight: 0.45,
+    explorationWeight: 0.80,    // máxima exploração (cap=0.9)
+  },
+};
+
 // ── Aprendizado Contínuo (Simulação Controlada) ─────────────────────────────────
 // temporaryBias: influencia geração seguinte MAS NÃO é gravado no banco.
 // Peso: 30% do memoryBias real. Decay rápido (60% ao trocar concurso de simulação).
@@ -688,31 +727,51 @@ export const arbiterMemory = {
       };
 
       console.log(
-        `[GENERATION SCENARIO CONTEXT]\n` +
-        `  selectedScenario:         ${scenario}\n` +
-        `  effectiveScenario:        ${scenario}\n` +
-        `  scenarioReactionApplied:  ${sr.sampleCount >= 2} (samples=${sr.sampleCount})\n` +
-        `  globalReactionApplied:    true (25% weight)\n` +
-        `  finalMutation:            ${blended.mutationMultiplier.toFixed(2)}x (scenario=${sr.smoothedInstinct.mutationMultiplier.toFixed(2)} global=${g.mutationMultiplier.toFixed(2)})\n` +
-        `  finalDiversity:           ${(blended.diversityBoost * 100).toFixed(0)}%\n` +
-        `  finalAntiCluster:         ${(blended.antiClusterBoost * 100).toFixed(0)}%\n` +
-        `  scenarioMode:             ${sr.currentMode}\n` +
-        `  globalMode:               ${g.mode}`,
+        `[SCENARIO LEARNED BLEND]\n` +
+        `  scenario:      ${scenario}\n` +
+        `  sampleCount:   ${sr.sampleCount}\n` +
+        `  scenarioWeight: 75%\n` +
+        `  globalWeight:  25%\n` +
+        `  finalMutation: ${blended.mutationMultiplier.toFixed(2)}x (scenario=${sr.smoothedInstinct.mutationMultiplier.toFixed(2)} global=${g.mutationMultiplier.toFixed(2)})\n` +
+        `  finalDiversity: ${(blended.diversityBoost * 100).toFixed(0)}%\n` +
+        `  finalAntiCluster: ${(blended.antiClusterBoost * 100).toFixed(0)}%\n` +
+        `  finalMode: ${sr.currentMode}`,
       );
 
       return blended;
     }
 
-    // Fallback: amostra insuficiente no cenário, usar global como único estado
+    // Fallback: sampleCount < 2 — usar 50% DNA base do cenário + 50% global
+    // Garante que cada cenário preserve identidade mesmo sem histórico próprio
     if (scenario) {
+      const dna = SCENARIO_BASE_DNA[scenario];
+      const g = instinctRuntime.smoothedInstinct;
+      const w = 0.5; // 50/50 quando sem amostra
+
+      const blendedFallback: AdaptiveInstinct = {
+        mode: perScenarioRuntime[scenario].sampleCount > 0
+          ? perScenarioRuntime[scenario].currentMode
+          : dna.naturalMode,
+        mutationMultiplier: Math.max(0.4, Math.min(2.0, dna.mutationMultiplier * w + g.mutationMultiplier * (1 - w))),
+        diversityBoost: Math.max(0.0, Math.min(0.8, dna.diversityBoost * w + g.diversityBoost * (1 - w))),
+        antiClusterBoost: Math.max(0.0, Math.min(0.9, dna.antiClusterBoost * w + g.antiClusterBoost * (1 - w))),
+        structuralBiasWeight: Math.max(0.2, Math.min(1.0, dna.structuralBiasWeight * w + g.structuralBiasWeight * (1 - w))),
+        explorationWeight: Math.max(0.0, Math.min(0.9, dna.explorationWeight * w + g.explorationWeight * (1 - w))),
+      };
+
       console.log(
-        `[GENERATION SCENARIO CONTEXT]\n` +
-        `  selectedScenario:         ${scenario}\n` +
-        `  scenarioReactionApplied:  false (samples=${perScenarioRuntime[scenario].sampleCount} < 2)\n` +
-        `  globalReactionApplied:    true (100% fallback)\n` +
-        `  finalMutation:            ${instinctRuntime.smoothedInstinct.mutationMultiplier.toFixed(2)}x\n` +
-        `  globalMode:               ${instinctRuntime.smoothedInstinct.mode}`,
+        `[SCENARIO FALLBACK BLEND]\n` +
+        `  scenario:      ${scenario}\n` +
+        `  sampleCount:   ${perScenarioRuntime[scenario].sampleCount}\n` +
+        `  baseWeight:    50% (DNA base do cenário)\n` +
+        `  globalWeight:  50%\n` +
+        `  finalMutation: ${blendedFallback.mutationMultiplier.toFixed(2)}x (dna=${dna.mutationMultiplier.toFixed(2)} global=${g.mutationMultiplier.toFixed(2)})\n` +
+        `  finalDiversity: ${(blendedFallback.diversityBoost * 100).toFixed(0)}%\n` +
+        `  finalAntiCluster: ${(blendedFallback.antiClusterBoost * 100).toFixed(0)}%\n` +
+        `  finalMode: ${blendedFallback.mode}`,
       );
+
+      return blendedFallback;
     }
 
     return instinctRuntime.smoothedInstinct;
