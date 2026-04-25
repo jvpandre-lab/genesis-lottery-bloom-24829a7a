@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 // ─── Tipos locais ──────────────────────────────────────────────────────────────
 
-type AutoStatus = "idle" | "checking" | "pending" | "continuous" | "learned" | "already-learned" | "partial" | "error";
+type AutoStatus = "idle" | "checking" | "pending" | "continuous" | "learned" | "target-minus-one-learned" | "already-learned" | "target-minus-one-already-learned" | "partial" | "error";
 
 interface GameResult {
     index: number;
@@ -448,9 +448,9 @@ export function RealConferralPanel({ currentResult, drawsSyncCount, onAutoStatus
             // Status final: learned > 0 nunca é sobrescrito por erro posterior
             const allAlreadyDone = duplicate + noDecision + blocked === games.length;
             if (learned > 0) {
-                setAutoStatus("learned");
+                setAutoStatus(drawMode === "target-minus-one" ? "target-minus-one-learned" : "learned");
             } else if (allAlreadyDone && duplicate > 0) {
-                setAutoStatus("already-learned");
+                setAutoStatus(drawMode === "target-minus-one" ? "target-minus-one-already-learned" : "already-learned");
             } else {
                 setAutoStatus("partial");
             }
@@ -576,13 +576,32 @@ export function RealConferralPanel({ currentResult, drawsSyncCount, onAutoStatus
     // ── Status do auto-aprendizado ─────────────────────────────────────────────
     const targetContest = currentResult?.targetContestNumber;
 
-    const statusConfig: Record<AutoStatus, { icon: React.ReactNode; label: string; cls: string }> = {
+    const statusConfig: Record<AutoStatus, { icon: React.ReactNode; label: string; cls: string; desc?: string }> = {
         idle: { icon: <Activity className="h-4 w-4" />, label: "Aguardando geração...", cls: "text-muted-foreground" },
         checking: { icon: <Loader2 className="h-4 w-4 animate-spin" />, label: "Verificando concurso alvo...", cls: "text-blue-400" },
         pending: { icon: <Clock className="h-4 w-4" />, label: `Aguardando concurso #${targetContest ?? "—"}`, cls: "text-amber-400" },
         continuous: { icon: <Brain className="h-4 w-4 animate-pulse" />, label: `Evolução ativa (modo contínuo) — aguardando #${targetContest ?? "—"}`, cls: "text-purple-400" },
-        learned: { icon: <CheckCircle2 className="h-4 w-4" />, label: `Aprendizado automático — Concurso #${report?.contestNumber ?? "—"}`, cls: "text-emerald-400" },
+
+        learned: {
+            icon: <CheckCircle2 className="h-4 w-4" />,
+            label: `Aprendizado confirmado — concurso alvo (#${report?.contestNumber ?? "—"}) conferido`,
+            cls: "text-emerald-400"
+        },
+        "target-minus-one-learned": {
+            icon: <AlertTriangle className="h-4 w-4" />,
+            label: `Aprendizado com último concurso disponível (#${report?.contestNumber ?? "—"}) — alvo (#${targetContest}) ainda não sorteado`,
+            cls: "text-amber-500",
+            desc: `O organismo usou o concurso #${report?.contestNumber ?? "—"} para ajustar a próxima geração enquanto aguarda o alvo #${targetContest}.`
+        },
+
         "already-learned": { icon: <CheckCircle2 className="h-4 w-4" />, label: `Aprendizado já aplicado — Concurso #${report?.contestNumber ?? "—"}`, cls: "text-emerald-300/70" },
+        "target-minus-one-already-learned": {
+            icon: <AlertTriangle className="h-4 w-4" />,
+            label: `Aprendizado indireto já aplicado — Concurso #${report?.contestNumber ?? "—"}`,
+            cls: "text-amber-500/70",
+            desc: `O organismo usou o concurso #${report?.contestNumber ?? "—"} para ajustar a próxima geração enquanto aguarda o alvo #${targetContest}.`
+        },
+
         partial: { icon: <AlertTriangle className="h-4 w-4" />, label: `Aprendizado parcial — ${report?.learned ?? 0} aprendidos`, cls: "text-amber-400" },
         error: { icon: <AlertTriangle className="h-4 w-4" />, label: "Erro na conferência automática", cls: "text-red-400" },
     };

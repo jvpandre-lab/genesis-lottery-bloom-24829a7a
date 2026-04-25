@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { globalPressure } from "@/engine/adaptivePressureEngine";
+import { arbiterMemory } from "@/engine/arbiterMemory";
 import { integrateEcosystemFlow } from "@/engine/ecoIntegration";
 import { generate, GenerationDiagnostics } from "@/engine/generatorCore";
 import { GenerationResult, Scenario } from "@/engine/lotteryTypes";
@@ -465,6 +466,11 @@ function SystemStatusBlock({
   learningStatus: string;
 }) {
   const { avgScore, avgDiversity } = result.metrics;
+  
+  // Extrair amostragem real para status [FIX 2]
+  const hitsExtracted = arbiterMemory.getState().decisions.filter(d => d.outcomeHits !== undefined);
+  const uniqueContests = new Set(hitsExtracted.map(d => d.context.targetContestNumber || 0));
+  const sampleSize = uniqueContests.size;
 
   // Calcular status
   let status: "Saudável" | "Em ajuste" | "Instável";
@@ -472,7 +478,12 @@ function SystemStatusBlock({
   let statusIcon: string;
   let message: string;
 
-  if (learningStatus === "error") {
+  if (sampleSize < 10) {
+    status = "Em ajuste";
+    statusColor = "text-amber-400";
+    statusIcon = "🟡";
+    message = `Aguardando amostra real (${sampleSize}/10). O organismo ainda está coletando dados reais antes de reagir com força total.`;
+  } else if (learningStatus === "error") {
     status = "Instável";
     statusColor = "text-red-400";
     statusIcon = "🔴";

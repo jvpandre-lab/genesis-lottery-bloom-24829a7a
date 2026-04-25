@@ -217,7 +217,7 @@ export async function generate(
   const totalCount = input.count;
   const recent = (input.recentDraws ?? []).slice(0, 8).map((d) => d.numbers);
   const recentResults = input.recentResults ?? [];
-  const useTwoBrains = input.twoBrains !== false;
+  const useTwoBrains = true; // [FIX 1] Força twoBrains=true para garantir decisionId obrigatoriamente
   const disableEngines = input.disableEngines ?? {};
 
   await arbiterMemory.init();
@@ -228,8 +228,9 @@ export async function generate(
       .join(",")}`,
   );
   if (recentResults.length === 0) {
-    console.error(
-      "[GENERATOR] CRITICAL: recentResults is empty. PreGenContext will not receive historical generations.",
+    // [FIX 4] Log limpo sem 'CRITICAL' para inicialização limpa
+    console.log(
+      "[GENERATOR INIT] Nenhuma geração anterior encontrada. Iniciando baseline limpo.",
     );
   }
   console.log(`[ARBITER] decisionsBefore=${decisionsBefore}`);

@@ -867,7 +867,13 @@ export const arbiterMemory = {
 
     const weighted: WeightedPattern[] = eligible.map((d, idx) => {
       const posFromEnd = eligible.length - idx;
-      const weight = Math.exp(-posFromEnd / DECAY_HALF); // decay exponencial
+      let weight = Math.exp(-posFromEnd / DECAY_HALF); // decay exponencial
+
+      // [FIX 5] Controle de peso no cross-scenario (hybrid pooling)
+      if (scenario === "hybrid" && d.context.scenario !== "hybrid") {
+        weight *= 0.35; // redução drástica para diminuir ruído estrangeiro
+      }
+
       const pattern = extractPattern(
         d.chosen.numbers ?? [],
         d.chosen.lineage,
@@ -875,6 +881,17 @@ export const arbiterMemory = {
       );
       return { pattern, weight, quality: d.outcomeQuality! };
     });
+
+    if (scenario === "hybrid") {
+      const crossCount = eligible.filter(d => d.context.scenario !== "hybrid").length;
+      const ownCount = eligible.length - crossCount;
+      console.log(
+        `[META BIAS HYBRID CONTROL]\n` +
+        `  ownScenario:      ${ownCount}\n` +
+        `  crossScenario:    ${crossCount}\n` +
+        `  crossWeight:      0.35`
+      );
+    }
 
     // ── PARTE 2: Agrupamento GOOD/BAD com ocorrência mínima ───────────────
     const goodItems = weighted.filter(w => w.quality === "good");
