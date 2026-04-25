@@ -177,7 +177,17 @@ const Index = () => {
   const recommendations = useMemo(() => {
     if (!result || !diag) return [];
     globalPressure.load();
-    return recommend(result, globalPressure.signals(), diag.adjustments);
+    const all = recommend(result, globalPressure.signals(), diag.adjustments);
+    // Filtrar recomendações técnicas sem ação prática para o usuário
+    return all.filter((r) => {
+      const text = `${r.title} ${r.detail ?? ""}`.toLowerCase();
+      return (
+        !text.includes("csv") &&
+        !text.includes("json") &&
+        !text.includes("importe") &&
+        !text.includes("sem hist\u00f3rico para backtest")
+      );
+    });
   }, [result, diag]);
 
   return (
@@ -190,46 +200,23 @@ const Index = () => {
               <Sparkles className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <div className="text-sm font-semibold tracking-tight">
-                Lotomania IA da Sorte
-              </div>
-              <div className="text-[10px] text-muted-foreground -mt-0.5 uppercase tracking-widest">
-                Sistema Evolutivo
-              </div>
+              <div className="text-sm font-semibold tracking-tight">Lotomania IA da Sorte</div>
+              <div className="text-[10px] text-muted-foreground -mt-0.5 uppercase tracking-widest">Sistema Evolutivo</div>
             </div>
-          </div>
-          <div className="hidden md:flex items-center gap-2 text-[11px] text-muted-foreground">
-            <Badge variant="outline" className="font-mono num-mono">
-              <Cpu className="h-3 w-3 mr-1.5" />6 linhagens
-            </Badge>
-            <Badge variant="outline" className="font-mono num-mono">
-              <Layers className="h-3 w-3 mr-1.5" />4 lotes
-            </Badge>
-            <Badge variant="outline" className="font-mono num-mono">
-              <Activity className="h-3 w-3 mr-1.5" />
-              GA + território
-            </Badge>
           </div>
         </div>
       </header>
 
       <main className="container py-8 space-y-8">
-        {/* Hero */}
-        <section className="relative overflow-hidden rounded-2xl glass-strong p-8 md:p-12">
+        {/* Hero compacto */}
+        <section className="relative overflow-hidden rounded-2xl glass-strong px-8 py-6 md:px-10 md:py-8">
           <div className="absolute inset-0 bg-gradient-glow pointer-events-none" />
-          <div className="relative z-10 max-w-3xl">
-            <Badge className="bg-gradient-accent text-accent-foreground border-0 mb-4">
-              v1 · Núcleo profundo
-            </Badge>
-            <h1 className="text-3xl md:text-5xl font-semibold tracking-tight leading-tight">
-              Construção estratégica{" "}
-              <span className="text-gradient">evolutiva</span> para Lotomania
+          <div className="relative z-10">
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-tight">
+              Gere jogos <span className="text-gradient">inteligentes</span> para Lotomania
             </h1>
-            <p className="mt-4 text-muted-foreground max-w-2xl">
-              Linhagens com identidade própria, mapa territorial vivo, motor
-              genético com pressão adaptativa e motor de contradição que rejeita
-              jogos confortáveis demais. Cada geração é uma exploração real do
-              espaço 00–99.
+            <p className="mt-2 text-sm text-muted-foreground max-w-xl">
+              O sistema aprende com os resultados reais e ajusta automaticamente a próxima geração.
             </p>
           </div>
         </section>
@@ -317,75 +304,68 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Resultado */}
+        {/* Resultado — layout sequencial */}
         {result && (
           <section className="space-y-6 animate-fade-in">
+            {/* (5) Qualidade da geração */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Kpi
-                label="Qualidade"
-                value={`${Math.round(result.metrics.avgScore * 100)}`}
-                suffix="/100"
-                tone="primary"
-              />
-              <Kpi
-                label="Diversidade"
-                value={`${Math.round(result.metrics.avgDiversity * 100)}%`}
-                tone="accent"
-              />
-              <Kpi
-                label="Cobertura"
-                value={`${Math.round(result.metrics.avgCoverage * 100)}%`}
-              />
+              <Kpi label="Qualidade" value={`${Math.round(result.metrics.avgScore * 100)}`} suffix="/100" tone="primary" />
+              <Kpi label="Diversidade" value={`${Math.round(result.metrics.avgDiversity * 100)}%`} tone="accent" />
+              <Kpi label="Cobertura" value={`${Math.round(result.metrics.avgCoverage * 100)}%`} />
               <SystemStatusBlock result={result} learningStatus={learningStatus} />
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <div className="xl:col-span-2 space-y-8">
-                {result.batches.map((b) => (
-                  <BatchSection key={b.name} batch={b} />
-                ))}
-                <div className="mt-8">
-                  <RealConferralPanel
-                    currentResult={result}
-                    drawsSyncCount={draws}
-                    onAutoStatusChange={handleLearningStatus}
-                  />
-                </div>
-              </div>
-              <aside className="space-y-6">
-                {/* Sempre visíveis */}
-                {recommendations.length > 0 && (
-                  <RecommendationsPanel items={recommendations} />
-                )}
-                <BacktestPanel currentGeneration={result} />
-                <TerritoryHeatmap result={result} />
+            {/* (6) Recomendações do sistema */}
+            {recommendations.length > 0 && (
+              <RecommendationsPanel items={recommendations} />
+            )}
 
-                {/* Toggle Modo Avançado */}
-                <button
-                  onClick={() => setShowAdvanced((v) => !v)}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl border border-border/50 text-[11px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
-                >
-                  <Settings2 className="h-3.5 w-3.5" />
-                  {showAdvanced ? "Ocultar painel técnico" : "Modo avançado"}
-                  {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
+            {/* (6) Jogos gerados */}
+            <div className="space-y-8">
+              {result.batches.map((b) => (
+                <BatchSection key={b.name} batch={b} />
+              ))}
+            </div>
 
-                {/* Painéis técnicos — apenas no modo avançado */}
-                {showAdvanced && (
-                  <div className="space-y-6 border-t border-border/30 pt-4">
-                    {diag && <DiagnosticsPanel diag={diag} />}
-                    {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
-                    <EvolutionaryBacktestPanel scenario={scenario} />
-                    <TacticalLotePanel batches={result.batches} />
-                    <BrainTensionDiagnostics />
-                    <EvolutionTimeline />
-                    <div className="glass rounded-xl p-5 space-y-3">
-                      <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
-                      <LineageBreakdown result={result} />
-                    </div>
+            {/* (7) Conferência & Aprendizado Automático */}
+            <RealConferralPanel
+              currentResult={result}
+              drawsSyncCount={draws}
+              onAutoStatusChange={handleLearningStatus}
+            />
+
+            {/* (8) Backtest histórico */}
+            <BacktestPanel currentGeneration={result} />
+
+            {/* (9) Backtest Evolutivo */}
+            <EvolutionaryBacktestPanel scenario={scenario} />
+
+            {/* (10) Modo Avançado */}
+            <div className="space-y-4">
+              <button
+                onClick={() => setShowAdvanced((v) => !v)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-border/50 text-[12px] text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                {showAdvanced ? "Ocultar detalhes técnicos" : "Ver detalhes técnicos"}
+                {showAdvanced ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              </button>
+
+              {showAdvanced && (
+                <div className="space-y-6 border border-border/30 rounded-2xl p-5">
+                  <p className="text-[11px] text-muted-foreground">Painel técnico — informações internas do organismo.</p>
+                  <TerritoryHeatmap result={result} />
+                  {diag && <DiagnosticsPanel diag={diag} />}
+                  {diag && <EcosystemDashboard diag={diag} scenario={scenario} />}
+                  <TacticalLotePanel batches={result.batches} />
+                  <BrainTensionDiagnostics />
+                  <EvolutionTimeline />
+                  <div className="glass rounded-xl p-5 space-y-3">
+                    <h4 className="text-sm font-semibold tracking-tight">Composição das linhagens</h4>
+                    <LineageBreakdown result={result} />
                   </div>
-                )}
-              </aside>
+                </div>
+              )}
             </div>
           </section>
         )}

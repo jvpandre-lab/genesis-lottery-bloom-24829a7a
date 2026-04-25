@@ -8,7 +8,7 @@ import { Scenario } from "@/engine/lotteryTypes";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { countDraws, fetchAllDraws } from "@/services/storageService";
-import { Loader2, Rewind, TrendingDown, TrendingUp } from "lucide-react";
+import { Loader2, Rewind, TrendingDown, TrendingUp, BarChart2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface Props {
@@ -39,10 +39,10 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
     }
     setBusy(true);
     setReport(null);
-    setProgress("Carregando histórico completo...");
+    setProgress("Carregando histórico...");
     try {
       const allDraws = await fetchAllDraws();
-      setProgress(`Rodando ${numGens} gerações retroativas...`);
+      setProgress(`Simulando ${numGens} gerações no passado...`);
 
       const rep = await backtestEvolutionaryRetrospective(
         numGens,
@@ -50,7 +50,6 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
         allDraws,
         scenario,
         async (input) => {
-          // gera com two-brains ATIVO para medir o sistema real de produção
           const res = await generate({
             count: 5,
             scenario: input.scenario,
@@ -79,17 +78,21 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
     }
   }
 
+  // Encontrar max para normalizar a curva
+  const maxHits = report
+    ? Math.max(...report.generations.map((g) => g.avgHits), 1)
+    : 1;
+
   return (
     <div className="glass rounded-xl p-5 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h4 className="text-sm font-semibold tracking-tight flex items-center gap-2">
-            <Rewind className="h-4 w-4 text-primary" /> Backtest evolutivo
-            retroativo
+            <Rewind className="h-4 w-4 text-primary" /> Backtest Evolutivo
           </h4>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Roda o sistema como se estivesse no passado, usando só draws
-            disponíveis até cada ponto.
+            Simula como o organismo teria evoluído se tivesse gerado jogos no passado.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -99,10 +102,10 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
             disabled={busy}
             className="text-[11px] bg-surface-2/60 border border-border/50 rounded px-2 py-1"
           >
-            <option value={4}>4 gens</option>
-            <option value={8}>8 gens</option>
-            <option value={12}>12 gens</option>
-            <option value={20}>20 gens</option>
+            <option value={4}>4 gerações</option>
+            <option value={8}>8 gerações</option>
+            <option value={12}>12 gerações</option>
+            <option value={20}>20 gerações</option>
           </select>
           <Button
             size="sm"
@@ -115,96 +118,103 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
         </div>
       </div>
 
+      {/* Progresso */}
       {progress && (
-        <div className="text-[11px] text-muted-foreground italic">
+        <div className="text-[11px] text-muted-foreground italic animate-pulse">
           {progress}
         </div>
       )}
 
+      {/* Sem histórico */}
       {drawsTotal === 0 && (
-        <div className="text-[11px] text-warning/90">
-          Importe um histórico para habilitar.
+        <div className="text-[11px] text-muted-foreground/70 border border-border/40 rounded-lg px-4 py-3">
+          Sincronize o histórico oficial para habilitar o backtest evolutivo.
+        </div>
+      )}
+
+      {/* Sem dados ainda */}
+      {!report && !busy && drawsTotal > 0 && (
+        <div className="flex flex-col items-center gap-2 py-6 text-muted-foreground/50">
+          <BarChart2 className="h-8 w-8" />
+          <p className="text-[11px]">Execute o backtest para visualizar a evolução.</p>
         </div>
       )}
 
       {report && (
         <div className="space-y-4">
-          {/* Overall trends */}
+          {/* KPIs principais */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <Metric
-              label="Acertos médios"
-              value={report.overall.avgHits.toFixed(2)}
-            />
-            <Metric
-              label="15+"
-              value={`${(report.overall.freq15plus * 100).toFixed(2)}%`}
-            />
-            <Metric
-              label="16+"
-              value={`${(report.overall.freq16plus * 100).toFixed(2)}%`}
-            />
-            <Metric
-              label="17+"
-              value={`${(report.overall.freq17plus * 100).toFixed(2)}%`}
-            />
+            <KpiCard label="Acertos médios" value={report.overall.avgHits.toFixed(1)} />
+            <KpiCard label="Taxa 15+" value={`${(report.overall.freq15plus * 100).toFixed(1)}%`} />
+            <KpiCard label="Taxa 16+" value={`${(report.overall.freq16plus * 100).toFixed(1)}%`} />
+            <KpiCard label="Taxa 17+" value={`${(report.overall.freq17plus * 100).toFixed(1)}%`} />
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <Trend
-              label="Estabilidade"
+          {/* Tendência: apenas estabilidade */}
+          <div className="grid grid-cols-1 gap-2">
+            <TrendCard
+              label="Tendência de estabilidade"
               value={report.overall.stabilityTrend}
               invert
             />
-            <Trend
-              label="Saturação territorial"
-              value={report.overall.saturationTrend}
-            />
-            <Trend
-              label="Convergência"
-              value={report.overall.convergenceTrend}
-              invert
-            />
           </div>
 
-          {/* Per-generation curve */}
-          <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
-            <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-              Curva evolutiva (geração × acertos médios)
+          {/* Curva evolutiva animada */}
+          <div className="rounded-lg bg-surface-2/60 border border-border/50 p-4">
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+              Evolução dos acertos por geração
             </div>
-            <div className="flex items-end gap-1 h-20">
-              {report.generations.map((g) => {
-                const h = Math.max(4, Math.min(80, g.avgHits * 8));
+            <div className="flex items-end gap-1.5 h-24">
+              {report.generations.map((g, i) => {
+                const pct = Math.max(6, (g.avgHits / maxHits) * 100);
+                const isRising = i > 0 && g.avgHits >= report.generations[i - 1].avgHits;
                 return (
                   <div
                     key={g.generationIndex}
-                    className="flex-1 bg-primary/60 rounded-sm relative group"
-                    style={{ height: `${h}px` }}
-                    title={`Gen ${g.generationIndex}: ${g.avgHits.toFixed(2)} acertos · ${g.drawsUsed} draws`}
-                  />
+                    className="flex-1 flex flex-col items-center gap-1 group"
+                  >
+                    {/* valor */}
+                    <span className="text-[8px] text-muted-foreground/60 font-mono opacity-0 group-hover:opacity-100 transition-opacity">
+                      {g.avgHits.toFixed(1)}
+                    </span>
+                    {/* barra */}
+                    <div
+                      className={cn(
+                        "w-full rounded-t-sm transition-all duration-700",
+                        isRising || i === 0 ? "bg-primary/70" : "bg-destructive/50",
+                      )}
+                      style={{ height: `${pct}%` }}
+                      title={`Geração ${g.generationIndex}: ${g.avgHits.toFixed(2)} acertos`}
+                    />
+                    {/* label */}
+                    <span className="text-[8px] text-muted-foreground/50 font-mono">
+                      {g.generationIndex}
+                    </span>
+                  </div>
                 );
               })}
             </div>
+            <div className="mt-2 flex gap-3 text-[9px] text-muted-foreground/60">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-primary/70 rounded-sm inline-block" />Subiu</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 bg-destructive/50 rounded-sm inline-block" />Caiu</span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Section title="Por linhagem">
-              {report.perLineage.slice(0, 6).map((l) => (
-                <Row
-                  key={l.lineage}
-                  label={l.lineage}
-                  value={`${l.avgHits.toFixed(2)} (${(l.freq15plus * 100).toFixed(2)}% 15+)`}
-                />
-              ))}
-            </Section>
-            <Section title="Por cenário">
+          {/* Por cenário simplificado */}
+          <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
+            <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
+              Resultados por cenário
+            </div>
+            <div className="space-y-1.5">
               {report.perScenario.map((s) => (
-                <Row
-                  key={s.scenario}
-                  label={s.scenario}
-                  value={`${s.avgHits.toFixed(2)} (${(s.freq15plus * 100).toFixed(2)}% 15+)`}
-                />
+                <div key={s.scenario} className="flex justify-between text-[11px]">
+                  <span className="capitalize text-foreground/80">{s.scenario}</span>
+                  <span className="font-mono num-mono text-muted-foreground">
+                    {s.avgHits.toFixed(1)} acertos · {(s.freq15plus * 100).toFixed(1)}% ganham 15+
+                  </span>
+                </div>
               ))}
-            </Section>
+            </div>
           </div>
         </div>
       )}
@@ -212,80 +222,26 @@ export function EvolutionaryBacktestPanel({ scenario }: Props) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-base font-mono num-mono mt-1">{value}</div>
+      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</div>
+      <div className="text-base font-mono num-mono mt-1 text-foreground">{value}</div>
     </div>
   );
 }
 
-function Trend({
-  label,
-  value,
-  invert,
-}: {
-  label: string;
-  value: number;
-  invert?: boolean;
-}) {
-  // invert=true => slope positivo é ruim (estabilidade=variância subindo, convergência subindo)
+function TrendCard({ label, value, invert }: { label: string; value: number; invert?: boolean }) {
   const positiveIsBad = !!invert;
   const isUp = value > 0;
   const isHealthy = positiveIsBad ? !isUp : isUp;
   return (
     <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3 flex items-center justify-between">
-      <div>
-        <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-          {label}
-        </div>
-        <div className="text-xs font-mono num-mono mt-1">
-          {value.toFixed(4)}
-        </div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className={cn("flex items-center gap-1 text-[11px] font-medium", isHealthy ? "text-emerald-400" : "text-amber-400")}>
+        {isUp ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+        {isHealthy ? "Estável" : "Variando"}
       </div>
-      <div
-        className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center",
-          isHealthy
-            ? "bg-success/20 text-success"
-            : "bg-destructive/20 text-destructive",
-        )}
-      >
-        {isUp ? (
-          <TrendingUp className="h-4 w-4" />
-        ) : (
-          <TrendingDown className="h-4 w-4" />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-lg bg-surface-2/60 border border-border/50 p-3">
-      <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2">
-        {title}
-      </div>
-      <div className="space-y-1">{children}</div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between text-[11px]">
-      <span className="capitalize text-foreground/85">{label}</span>
-      <span className="font-mono num-mono text-muted-foreground">{value}</span>
     </div>
   );
 }
